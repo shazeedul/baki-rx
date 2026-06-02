@@ -6,13 +6,12 @@ import {
   TouchableOpacity,
   ScrollView,
   StyleSheet,
-  SafeAreaView,
   Platform,
   Modal,
   Alert,
   Dimensions,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 
 import { useTheme } from '@/hooks/use-theme';
 import { useAuth } from '@/context/auth-context';
@@ -437,13 +436,14 @@ export default function HomeScreen() {
 
           {/* 5. ADD CUSTOMER MODAL / OVERLAY */}
           <Modal
-            animationType="fade"
+            animationType="slide"
             transparent={true}
             visible={addCustModalVisible}
             onRequestClose={() => setAddCustModalVisible(false)}
           >
             <View style={styles.modalOverlay}>
-              <View style={[styles.modalCard, { backgroundColor: theme.background }]}>
+              <View style={[styles.modalCard, { backgroundColor: theme.background, paddingBottom: insets.bottom + Spacing.four }]}>
+                <View style={[styles.drawerHandle, { backgroundColor: theme.backgroundSelected }]} />
                 <Text style={[styles.modalTitle, { color: theme.text }]}>Add New Customer</Text>
                 <Text style={[styles.modalSubtitle, { color: theme.textSecondary }]}>
                   Enter customer details to create new account
@@ -1193,15 +1193,23 @@ const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
+    justifyContent: 'flex-end',
     alignItems: 'center',
-    padding: Spacing.four,
   },
   modalCard: {
     width: '100%',
-    maxWidth: 400,
-    borderRadius: Spacing.three,
-    padding: Spacing.four,
+    maxWidth: 600,
+    borderTopLeftRadius: Spacing.four,
+    borderTopRightRadius: Spacing.four,
+    paddingHorizontal: Spacing.four,
+    paddingTop: Spacing.two,
+  },
+  drawerHandle: {
+    width: 40,
+    height: 5,
+    borderRadius: 2.5,
+    alignSelf: 'center',
+    marginBottom: Spacing.three,
   },
   modalTitle: {
     fontSize: 20,
