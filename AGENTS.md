@@ -56,3 +56,22 @@ The architecture is deliberately decoupled to allow transitioning off Supabase t
 * **API Decoupling:** The local sync engine interfaces only with JSON payloads. The sync service class should be written to easily swap `supabase.from().upsert()` with standard `fetch()` or `axios` POST requests.
 * **Backend Tech Choice:** A high-concurrency language like Go or a robust MVC framework like Laravel is recommended for the future API VM to handle heavy JSON delta-sync loads from multiple stores simultaneously.
 * **Auth Migration:** The local SQLite session management currently holding Supabase metadata will remain unchanged. The future custom API will simply need to return a standard JWT containing the same `store_id` and `tenant_id` claims upon login.
+
+## 7. Environment Variables Configuration (.env)
+
+To securely manage cloud endpoints and ease the transition to your future API-based VM, the application uses native Expo environment variables.
+
+### Local `.env` File Setup
+Create a `.env` file in your root directory. In Expo, all environment variables intended for the client application **must** be prefixed with `EXPO_PUBLIC_`.
+
+```env
+# Supabase Configuration (Current)
+EXPO_PUBLIC_SUPABASE_URL=[https://your-supabase-project.supabase.co](https://your-supabase-project.supabase.co)
+EXPO_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+# Future API VM Configuration (Pre-configured placeholder)
+EXPO_PUBLIC_FUTURE_API_URL=[https://api.bakirxledger.com/v1](https://api.bakirxledger.com/v1)
+EXPO_PUBLIC_API_MODE=supabase # Switch to 'custom' when moving to your own VM
+
+# Local SQLite Encryption/Security Salt (Optional)
+EXPO_PUBLIC_LOCAL_CRYPT_SALT=your-secure-local-salt-string
