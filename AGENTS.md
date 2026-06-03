@@ -67,7 +67,7 @@ Create a `.env` file in your root directory. In Expo, all environment variables 
 ```env
 # Supabase Configuration (Current)
 EXPO_PUBLIC_SUPABASE_URL=[https://your-supabase-project.supabase.co](https://your-supabase-project.supabase.co)
-EXPO_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+EXPO_PUBLIC_SUPABASE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 
 # Future API VM Configuration (Pre-configured placeholder)
 EXPO_PUBLIC_FUTURE_API_URL=[https://api.bakirxledger.com/v1](https://api.bakirxledger.com/v1)

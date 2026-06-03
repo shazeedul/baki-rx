@@ -1,38 +1,297 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { Alert, Platform } from 'react-native';
+import NetInfo from '@react-native-community/netinfo';
+import { supabase } from '../sync/supabase-client';
+import { saveLocalSession, getLocalSession, clearLocalSession } from '../storage/auth-storage';
+
+const LOCAL_CRYPT_SALT = process.env.EXPO_PUBLIC_LOCAL_CRYPT_SALT || 'baki-rx-secure-salt-value-12938102';
 
 type AuthContextType = {
   isLoggedIn: boolean;
   selectedBranch: string;
   mobileNumber: string;
-  login: (branch: string, mobile: string, pin: string) => boolean;
-  logout: () => void;
+  storeId: string;
+  tenantId: string;
+  isOfflineMode: boolean;
+  isLoading: boolean;
+  login: (branch: string, mobile: string, pin: string) => Promise<boolean>;
+  logout: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+// Pure JS/TS SHA-256 for cross-platform stability (Android, iOS, Web)
+function simpleSHA256(str: string): string {
+  const chrsz = 8;
+  const hexcase = 0;
+  function safe_add(x: number, y: number) {
+    const lsw = (x & 0xFFFF) + (y & 0xFFFF);
+    const msw = (x >> 16) + (y >> 16) + (lsw >> 16);
+    return (msw << 16) | (lsw & 0xFFFF);
+  }
+  function S(X: number, n: number) { return (X >>> n) | (X << (32 - n)); }
+  function R(X: number, n: number) { return (X >>> n); }
+  function Ch(x: number, y: number, z: number) { return ((x & y) ^ (~x & z)); }
+  function Maj(x: number, y: number, z: number) { return ((x & y) ^ (x & z) ^ (y & z)); }
+  function Sigma0256(x: number) { return (S(x, 2) ^ S(x, 13) ^ S(x, 22)); }
+  function Sigma1256(x: number) { return (S(x, 6) ^ S(x, 11) ^ S(x, 25)); }
+  function gamma0256(x: number) { return (S(x, 7) ^ S(x, 18) ^ R(x, 3)); }
+  function gamma1256(x: number) { return (S(x, 17) ^ S(x, 19) ^ R(x, 10)); }
+  function core_sha256(m: number[], l: number) {
+    const K = [
+      0x428A2F98, 0x71374491, 0xB5C0FBCF, 0xE9B5DBA5, 0x3956C25B, 0x59F111F1, 0x923F82A4, 0xAB1C5ED5,
+      0xD807AA98, 0x12835B01, 0x243185BE, 0x550C7DC3, 0x72BE5D74, 0x80DEB1FE, 0x9BDC06A7, 0xC19BF174,
+      0xE49B69C1, 0xEFBE4786, 0x0FC19DC6, 0x240CA1CC, 0x2DE92C6F, 0x4A7484AA, 0x5CB0A9DC, 0x76F988DA,
+      0x983E5152, 0xA831C66D, 0xB00327C8, 0xBF597FC7, 0xC6E00BF3, 0xD5A79147, 0x06CA6351, 0x14292967,
+      0x27B70A85, 0x2E1B2138, 0x4D2C6DFC, 0x53380D13, 0x650A7354, 0x766A0ABB, 0x81C2C92E, 0x92722C85,
+      0xA2BFE8A1, 0xA81A664B, 0xC24B8B70, 0xC76C51A3, 0xD192E819, 0xD6990624, 0xF40E3585, 0x106AA070,
+      0x19A4C116, 0x1E376C08, 0x2748774C, 0x34B0BCB5, 0x391C0CB3, 0x4ED8AA4A, 0x5B9CCA4F, 0x682E6FF3,
+      0x748F82EE, 0x78A5636F, 0x84C87814, 0x8CC70208, 0x90BEFFFA, 0xA4506CEB, 0xBEF9A3F7, 0xC67178F2
+    ];
+    const HASH = [
+      0x6A09E667, 0xBB67AE85, 0x3C6EF372, 0xA54FF53A, 0x510E527F, 0x9B05688C, 0x1F83D9AB, 0x5BE0CD19
+    ];
+    const W = new Array(64);
+    let a, b, c, d, e, f, g, h, i, j;
+    let T1, T2;
+    m[l >> 5] |= 0x80 << (24 - l % 32);
+    m[((l + 64 >> 9) << 4) + 15] = l;
+    for (i = 0; i < m.length; i += 16) {
+      a = HASH[0]; b = HASH[1]; c = HASH[2]; d = HASH[3]; e = HASH[4]; f = HASH[5]; g = HASH[6]; h = HASH[7];
+      for (j = 0; j < 64; j++) {
+        if (j < 16) W[j] = m[j + i];
+        else W[j] = safe_add(safe_add(safe_add(gamma1256(W[j - 2]), W[j - 7]), gamma0256(W[j - 15])), W[j - 16]);
+        T1 = safe_add(safe_add(safe_add(safe_add(h, Sigma1256(e)), Ch(e, f, g)), K[j]), W[j]);
+        T2 = safe_add(Sigma0256(a), Maj(a, b, c));
+        h = g; g = f; f = e; e = safe_add(d, T1); d = c; c = b; b = a; a = safe_add(T1, T2);
+      }
+      HASH[0] = safe_add(a, HASH[0]); HASH[1] = safe_add(b, HASH[1]); HASH[2] = safe_add(c, HASH[2]); HASH[3] = safe_add(d, HASH[3]);
+      HASH[4] = safe_add(e, HASH[4]); HASH[5] = safe_add(f, HASH[5]); HASH[6] = safe_add(g, HASH[6]); HASH[7] = safe_add(h, HASH[7]);
+    }
+    return HASH;
+  }
+  function str2binb(str: string) {
+    const bin: number[] = [];
+    const mask = (1 << chrsz) - 1;
+    for (let i = 0; i < str.length * chrsz; i += chrsz) {
+      bin[i >> 5] |= (str.charCodeAt(i / chrsz) & mask) << (24 - i % 32);
+    }
+    return bin;
+  }
+  function binb2hex(binarray: number[]) {
+    const hex_tab = hexcase ? '0123456789ABCDEF' : '0123456789abcdef';
+    let str = '';
+    for (let i = 0; i < binarray.length * 4; i++) {
+      str += hex_tab.charAt((binarray[i >> 2] >> ((3 - i % 4) * 8 + 4)) & 0xF) +
+        hex_tab.charAt((binarray[i >> 2] >> ((3 - i % 4) * 8)) & 0xF);
+    }
+    return str;
+  }
+  return binb2hex(core_sha256(str2binb(str), str.length * chrsz));
+}
+
+async function isNetworkConnected(): Promise<boolean> {
+  if (Platform.OS === 'web') {
+    return navigator.onLine;
+  }
+  const state = await NetInfo.fetch();
+  return !!state.isConnected;
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [selectedBranch, setSelectedBranch] = useState('Choose your terminal');
   const [mobileNumber, setMobileNumber] = useState('');
+  const [storeId, setStoreId] = useState('');
+  const [tenantId, setTenantId] = useState('');
+  const [isOfflineMode, setIsOfflineMode] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const login = (branch: string, mobile: string, pin: string) => {
-    if (branch && branch !== 'Choose your terminal' && mobile.length >= 8 && pin.length === 4) {
-      setSelectedBranch(branch);
-      setMobileNumber(mobile);
+  // Restore session on startup
+  useEffect(() => {
+    (async () => {
+      try {
+        const session = await getLocalSession();
+        if (session) {
+          setSelectedBranch(session.branch);
+          setMobileNumber(session.mobile);
+          setStoreId(session.storeId);
+          setTenantId(session.tenantId);
+          setIsLoggedIn(true);
+
+          const connected = await isNetworkConnected();
+          setIsOfflineMode(!connected);
+        }
+      } catch (err) {
+        console.warn('Failed to restore offline session:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    })();
+
+    // Listen to network changes
+    const unsubscribe = NetInfo.addEventListener((state) => {
+      setIsOfflineMode(!state.isConnected);
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, []);
+
+  const login = async (branch: string, mobile: string, pin: string): Promise<boolean> => {
+    if (!branch || branch === 'Choose your terminal' || mobile.length < 8 || pin.length !== 4) {
+      return false;
+    }
+
+    const connected = await isNetworkConnected();
+    const isMockSupabase = !process.env.EXPO_PUBLIC_SUPABASE_URL || process.env.EXPO_PUBLIC_SUPABASE_URL.includes('mock');
+
+    let resolvedStoreId = '';
+    let resolvedTenantId = '';
+    let loginOffline = false;
+
+    if (connected && !isMockSupabase) {
+      try {
+        // Map mobile number to email format for Supabase Auth
+        const email = `${mobile.replace(/[^0-9]/g, '')}@bakirx.com`;
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email,
+          password: pin,
+        });
+
+        if (error) {
+          // If network failed, fall back. Otherwise fail the authentication
+          if (error.message && (error.message.includes('fetch') || error.message.includes('network'))) {
+            loginOffline = true;
+          } else {
+            Alert.alert('Authentication Failed', error.message);
+            return false;
+          }
+        } else if (data && data.user) {
+          resolvedStoreId = data.user.user_metadata?.store_id || 'dhanmondi-store-id';
+          resolvedTenantId = data.user.user_metadata?.tenant_id || 'baki-tenant-id';
+
+          // Cache credentials locally for offline access
+          const hashed = simpleSHA256(pin + LOCAL_CRYPT_SALT);
+          await saveLocalSession({
+            branch,
+            mobile,
+            storeId: resolvedStoreId,
+            tenantId: resolvedTenantId,
+            pinHash: hashed,
+          });
+
+          setSelectedBranch(branch);
+          setMobileNumber(mobile);
+          setStoreId(resolvedStoreId);
+          setTenantId(resolvedTenantId);
+          setIsLoggedIn(true);
+          setIsOfflineMode(false);
+          return true;
+        }
+      } catch (err) {
+        console.warn('Online login error, trying offline fallback', err);
+        loginOffline = true;
+      }
+    } else {
+      loginOffline = true;
+    }
+
+    if (loginOffline || isMockSupabase) {
+      const cachedSession = await getLocalSession();
+
+      if (isMockSupabase) {
+        // Simulator Mock Data Setup
+        resolvedStoreId = branch.toLowerCase().includes('dhanmondi')
+          ? 'dhanmondi-store-id'
+          : branch.toLowerCase().includes('gulshan')
+          ? 'gulshan-store-id'
+          : branch.toLowerCase().includes('uttara')
+          ? 'uttara-store-id'
+          : 'mirpur-store-id';
+        resolvedTenantId = 'baki-tenant-id';
+
+        const hashed = simpleSHA256(pin + LOCAL_CRYPT_SALT);
+        const mockSession = {
+          branch,
+          mobile,
+          storeId: resolvedStoreId,
+          tenantId: resolvedTenantId,
+          pinHash: hashed,
+        };
+        await saveLocalSession(mockSession);
+
+        setSelectedBranch(branch);
+        setMobileNumber(mobile);
+        setStoreId(resolvedStoreId);
+        setTenantId(resolvedTenantId);
+        setIsLoggedIn(true);
+        setIsOfflineMode(!connected);
+        return true;
+      }
+
+      if (!cachedSession) {
+        Alert.alert(
+          'Offline Mode Error',
+          'Terminal activation requires an initial online login. Please connect to the internet and retry.'
+        );
+        return false;
+      }
+
+      if (cachedSession.mobile !== mobile) {
+        Alert.alert('Authentication Failed', 'Mobile number does not match activated offline terminal.');
+        return false;
+      }
+
+      const inputHash = simpleSHA256(pin + LOCAL_CRYPT_SALT);
+      if (inputHash !== cachedSession.pinHash) {
+        Alert.alert('Authentication Failed', 'Invalid security PIN.');
+        return false;
+      }
+
+      // Successful Offline login
+      setSelectedBranch(cachedSession.branch);
+      setMobileNumber(cachedSession.mobile);
+      setStoreId(cachedSession.storeId);
+      setTenantId(cachedSession.tenantId);
       setIsLoggedIn(true);
+      setIsOfflineMode(true);
       return true;
     }
+
     return false;
   };
 
-  const logout = () => {
+  const logout = async () => {
+    try {
+      await supabase.auth.signOut().catch(() => undefined);
+      await clearLocalSession();
+    } catch (e) {
+      console.warn('Clear session error', e);
+    }
     setIsLoggedIn(false);
     setSelectedBranch('Choose your terminal');
     setMobileNumber('');
+    setStoreId('');
+    setTenantId('');
+    setIsOfflineMode(false);
   };
 
   return (
-    <AuthContext.Provider value={{ isLoggedIn, selectedBranch, mobileNumber, login, logout }}>
+    <AuthContext.Provider
+      value={{
+        isLoggedIn,
+        selectedBranch,
+        mobileNumber,
+        storeId,
+        tenantId,
+        isOfflineMode,
+        isLoading,
+        login,
+        logout,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

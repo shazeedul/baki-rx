@@ -83,6 +83,24 @@ export class SqliteAdapter implements StorageAdapter {
     await this.executeSql(`DELETE FROM entities WHERE id = ?;`, [entityId]);
   }
 
+  async getAll(prefix?: string): Promise<EntityRecord[]> {
+    let sql = 'SELECT id, data, rev, updatedAt FROM entities;';
+    let params: any[] = [];
+    if (prefix) {
+      sql = 'SELECT id, data, rev, updatedAt FROM entities WHERE id LIKE ?;';
+      params = [`${prefix}%`];
+    }
+    const [result] = await this.executeSql(sql, params);
+    const out: EntityRecord[] = [];
+    if (result && result.rows) {
+      for (let i = 0; i < result.rows.length; i++) {
+        const row = result.rows.item(i);
+        out.push({ id: row.id, data: JSON.parse(row.data), rev: row.rev, updatedAt: row.updatedAt });
+      }
+    }
+    return out;
+  }
+
   async addChange(change: ChangeRecord): Promise<number> {
     const data = change.data ? JSON.stringify(change.data) : null;
     const createdAt = change.createdAt || Date.now();

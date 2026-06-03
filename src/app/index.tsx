@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -15,7 +15,16 @@ import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context'
 
 import { useTheme } from '@/hooks/use-theme';
 import { useAuth } from '@/context/auth-context';
+import { useSync } from '@/context/sync-context';
 import { BottomTabInset, Spacing } from '@/constants/theme';
+
+function generateUUID(): string {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
 
 // Custom lightweight SVG/Shape Icons for universal platform support
 const SyncedIcon = ({ color }: { color: string }) => (
@@ -58,7 +67,8 @@ interface Customer {
 }
 
 export default function HomeScreen() {
-  const { isLoggedIn, selectedBranch, mobileNumber, login, logout } = useAuth();
+  const { isLoggedIn, selectedBranch, mobileNumber, login, logout, storeId, isOfflineMode } = useAuth();
+  const { engine, status } = useSync();
   const theme = useTheme();
   const insets = useSafeAreaInsets();
 
@@ -66,77 +76,101 @@ export default function HomeScreen() {
   // 'dashboard' | 'add-transaction' | 'customer-ledger'
   const [currentScreen, setCurrentScreen] = useState<'dashboard' | 'add-transaction' | 'customer-ledger'>('dashboard');
 
-  // Database State (In-Memory for rich interactive behavior)
-  const [customers, setCustomers] = useState<Customer[]>([
-    {
-      id: '1',
-      name: 'Kamal Hossain',
-      phone: '+880 1823-456789',
-      outstanding: 15200,
-      transactions: [
-        { id: '1-4', date: 'May 27', description: 'Medicine Purchase', debit: 2100, credit: 0, balance: 15200 },
-        { id: '1-3', date: 'May 22', description: 'Medicine Purchase', debit: 4500, credit: 0, balance: 13100 },
-        { id: '1-2', date: 'May 18', description: 'Payment Received', debit: 0, credit: 3000, balance: 8600 },
-        { id: '1-1', date: 'May 15', description: 'Opening Balance', debit: 11600, credit: 0, balance: 11600 },
-      ],
-    },
-    {
-      id: '2',
-      name: 'Rafiq Ahmed',
-      phone: '+880 1545-678901',
-      outstanding: 63450,
-      transactions: [
-        { id: '2-1', date: 'May 20', description: 'Medicine Purchase', debit: 63450, credit: 0, balance: 63450 },
-      ],
-    },
-    {
-      id: '3',
-      name: 'Ayesha Rahman',
-      phone: '+880 1712-345678',
-      outstanding: 52800,
-      transactions: [
-        { id: '3-1', date: 'May 25', description: 'Medicine Purchase', debit: 52800, credit: 0, balance: 52800 },
-      ],
-    },
-    {
-      id: '4',
-      name: 'Tanvir Islam',
-      phone: '+880 1912-345670',
-      outstanding: 84500,
-      transactions: [
-        { id: '4-1', date: 'May 26', description: 'Medicine Purchase', debit: 84500, credit: 0, balance: 84500 },
-      ],
-    },
-    {
-      id: '5',
-      name: 'Sajjad Rahman',
-      phone: '+880 1612-345671',
-      outstanding: 120000,
-      transactions: [
-        { id: '5-1', date: 'May 28', description: 'Medicine Purchase', debit: 120000, credit: 0, balance: 120000 },
-      ],
-    },
-    {
-      id: '6',
-      name: 'Farhana Yasmin',
-      phone: '+880 1512-345672',
-      outstanding: 98250,
-      transactions: [
-        { id: '6-1', date: 'May 29', description: 'Medicine Purchase', debit: 98250, credit: 0, balance: 98250 },
-      ],
-    },
-    {
-      id: '7',
-      name: 'Anisur Rahman',
-      phone: '+880 1812-345673',
-      outstanding: 183100,
-      transactions: [
-        { id: '7-1', date: 'May 30', description: 'Medicine Purchase', debit: 183100, credit: 0, balance: 183100 },
-      ],
-    },
-  ]);
+  // SQLite loaded state
+  const [customers, setCustomers] = useState<Customer[]>([]);
 
-  const [todayCollections, setTodayCollections] = useState(18500);
+  // Dynamic Delta Math data loader
+  const loadData = useCallback(async () => {
+    if (!engine) return;
+    try {
+      const adapter = (engine as any).adapter;
+      if (!adapter) return;
+
+      const customerEntities = await adapter.getAll('customer:');
+      const entryEntities = await adapter.getAll('ledger_entry:');
+
+      const allTx = entryEntities.map((e: any) => {
+        const d = e.data;
+        return {
+          id: e.id.replace('ledger_entry:', ''),
+          customerId: d.customer_id,
+          date: new Date(d.created_at || e.updatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+          description: d.entry_type === 'debit' ? 'Medicine Purchase' : 'Payment Received',
+          debit: d.entry_type === 'debit' ? (d.total_amount || 0) : 0,
+          credit: d.entry_type === 'credit' ? (d.paid_amount || 0) : (d.paid_amount || 0),
+          timestamp: d.created_at || e.updatedAt,
+        };
+      });
+
+      const customerList: Customer[] = customerEntities.map((c: any) => {
+        const d = c.data;
+        const custId = c.id.replace('customer:', '');
+
+        // Sort chronologically to compute running balance (Delta Math)
+        const custTx = allTx
+          .filter((tx: any) => tx.customerId === custId)
+          .sort((a: any, b: any) => a.timestamp - b.timestamp);
+
+        let runningBalance = 0;
+        const transactionsWithBalance = custTx.map((tx: any) => {
+          runningBalance += (tx.debit - tx.credit);
+          return {
+            ...tx,
+            balance: runningBalance,
+          };
+        });
+
+        // Reserve chronological sequence for displaying recent on top
+        const displayTx = [...transactionsWithBalance].reverse();
+
+        return {
+          id: custId,
+          name: d.name,
+          phone: d.phone,
+          outstanding: runningBalance,
+          transactions: displayTx,
+        };
+      });
+
+      setCustomers(customerList);
+    } catch (err) {
+      console.warn('Error loading data from local SQLite database:', err);
+    }
+  }, [engine]);
+
+  // Load local data on mount and engine load
+  useEffect(() => {
+    loadData();
+  }, [loadData, isLoggedIn]);
+
+  // Re-run database fetch on sync completion events
+  useEffect(() => {
+    if (!engine) return;
+    const handleSync = () => {
+      loadData();
+    };
+    engine.on('sync', handleSync);
+    return () => {
+      engine.off('sync', handleSync);
+    };
+  }, [engine, loadData]);
+
+  // Computed today's collections from local ledger entries
+  const todayCollections = useMemo(() => {
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const startTimestamp = startOfToday.getTime();
+
+    let total = 0;
+    for (const c of customers) {
+      for (const tx of c.transactions) {
+        if ((tx as any).timestamp >= startTimestamp) {
+          total += tx.credit;
+        }
+      }
+    }
+    return total;
+  }, [customers]);
 
   // Computed Total Outstanding
   const totalBaki = useMemo(() => {
@@ -247,7 +281,7 @@ export default function HomeScreen() {
                 style={[styles.textInput, { backgroundColor: theme.backgroundElement, color: theme.text }]}
                 placeholder="+880 17XX"
                 placeholderTextColor={theme.textSecondary}
-                keyboardType="phone-pad"
+                keyboardType="numeric"
                 value={loginMobile}
                 onChangeText={setLoginMobile}
               />
@@ -310,8 +344,13 @@ export default function HomeScreen() {
               <Text style={[styles.terminalSubtitle, { color: theme.textSecondary }]}>Terminal - 1</Text>
             </View>
             <View style={styles.syncedContainer}>
-              <SyncedIcon color="#2ecc71" />
-              <Text style={[styles.syncedText, { color: forestGreen }]}>Synced</Text>
+              <SyncedIcon color={isOfflineMode ? "#f39c12" : (status?.pendingChanges && status.pendingChanges > 0 ? "#3498db" : "#2ecc71")} />
+              <Text style={[styles.syncedText, { color: isOfflineMode ? "#e67e22" : forestGreen, fontSize: 13, fontWeight: '600' }]}>
+                {isOfflineMode
+                  ? (status?.pendingChanges && status.pendingChanges > 0 ? `Offline (${status.pendingChanges} pending)` : 'Offline')
+                  : (status?.pendingChanges && status.pendingChanges > 0 ? `Syncing (${status.pendingChanges})` : 'Synced')
+                }
+              </Text>
               <TouchableOpacity onPress={logout} style={styles.logoutBtn}>
                 <Text style={{ fontSize: 12, color: theme.textSecondary }}>Log out</Text>
               </TouchableOpacity>
@@ -466,30 +505,48 @@ export default function HomeScreen() {
                   placeholderTextColor={theme.textSecondary}
                   value={newCustPhone}
                   onChangeText={setNewCustPhone}
-                  keyboardType="phone-pad"
+                  keyboardType="numeric"
                 />
 
                 {/* Buttons */}
                 <TouchableOpacity
                   style={[styles.primaryButton, { backgroundColor: sageGreen, marginTop: Spacing.five }]}
                   activeOpacity={0.8}
-                  onPress={() => {
+                  onPress={async () => {
                     if (!newCustName || !newCustPhone) {
                       Alert.alert('Missing Fields', 'Please enter customer name and phone number.');
                       return;
                     }
-                    const newCust: Customer = {
-                      id: String(customers.length + 1),
-                      name: newCustName,
-                      phone: newCustPhone,
-                      outstanding: 0,
-                      transactions: [],
-                    };
-                    setCustomers([newCust, ...customers]);
-                    setNewCustName('');
-                    setNewCustPhone('');
-                    setAddCustModalVisible(false);
-                    Alert.alert('Success', 'Customer added successfully!');
+                    if (!engine) {
+                      Alert.alert('System Error', 'Database/Sync engine is not initialized yet.');
+                      return;
+                    }
+                    try {
+                      const customerId = generateUUID();
+                      const change = {
+                        entityId: `customer:${customerId}`,
+                        type: 'create' as const,
+                        data: {
+                          id: customerId,
+                          store_id: storeId,
+                          name: newCustName,
+                          phone: newCustPhone,
+                          updated_at: Date.now(),
+                        },
+                        createdAt: Date.now(),
+                      };
+
+                      await engine.enqueueLocalChange(change);
+                      await loadData();
+
+                      setNewCustName('');
+                      setNewCustPhone('');
+                      setAddCustModalVisible(false);
+                      Alert.alert('Success', 'Customer added successfully! (Offline Safe)');
+                    } catch (err) {
+                      console.error('Add customer error:', err);
+                      Alert.alert('Error', 'Failed to save customer locally.');
+                    }
                   }}
                 >
                   <Text style={styles.primaryButtonText}>Add Customer</Text>
@@ -531,7 +588,7 @@ export default function HomeScreen() {
 
     const selectedCust = customers.find((c) => c.id === txSelectedCustomerId);
 
-    const handleSaveTransaction = () => {
+    const handleSaveTransaction = async () => {
       if (!txSelectedCustomerId) {
         Alert.alert('No Customer', 'Please select a customer for this entry.');
         return;
@@ -540,34 +597,39 @@ export default function HomeScreen() {
         Alert.alert('Invalid Amount', 'Please enter a valid bill amount greater than 0.');
         return;
       }
-
-      // Update customers array
-      const updatedCustomers = customers.map((c) => {
-        if (c.id === txSelectedCustomerId) {
-          const newTx: Transaction = {
-            id: `${c.id}-${c.transactions.length + 1}`,
-            date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-            description: 'Medicine Purchase',
-            debit: bill,
-            credit: paid,
-            balance: c.outstanding + due,
-          };
-          return {
-            ...c,
-            outstanding: c.outstanding + due,
-            transactions: [newTx, ...c.transactions],
-          };
-        }
-        return c;
-      });
-
-      setCustomers(updatedCustomers);
-      if (paid > 0) {
-        setTodayCollections(todayCollections + paid);
+      if (!engine) {
+        Alert.alert('System Error', 'Database/Sync engine is not initialized yet.');
+        return;
       }
 
-      Alert.alert('Success', 'Credit entry saved successfully!');
-      setCurrentScreen('dashboard');
+      try {
+        const entryId = generateUUID();
+
+        const change = {
+          entityId: `ledger_entry:${entryId}`,
+          type: 'create' as const,
+          data: {
+            id: entryId,
+            store_id: storeId,
+            customer_id: txSelectedCustomerId,
+            total_amount: bill,
+            paid_amount: paid,
+            due_amount: due,
+            entry_type: 'debit',
+            created_at: Date.now(),
+          },
+          createdAt: Date.now(),
+        };
+
+        await engine.enqueueLocalChange(change);
+        await loadData();
+
+        Alert.alert('Success', 'Credit entry saved successfully! (Offline Safe)');
+        setCurrentScreen('dashboard');
+      } catch (err) {
+        console.error('Save transaction error:', err);
+        Alert.alert('Error', 'Failed to save entry locally.');
+      }
     };
 
     return (
@@ -702,36 +764,44 @@ export default function HomeScreen() {
           { text: 'Cancel', style: 'cancel' },
           {
             text: 'Collect',
-            onPress: (val?: string) => {
+            onPress: async (val?: string) => {
               const amount = parseFloat(val || '0');
               if (isNaN(amount) || amount <= 0) {
                 Alert.alert('Error', 'Please enter a valid amount.');
                 return;
               }
+              if (!engine) {
+                Alert.alert('System Error', 'Database/Sync engine is not initialized yet.');
+                return;
+              }
 
-              // Update ledger records
-              const updatedCustomers = customers.map((c) => {
-                if (c.id === activeCustomer.id) {
-                  const creditTx: Transaction = {
-                    id: `${c.id}-${c.transactions.length + 1}`,
-                    date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-                    description: 'Payment Received',
-                    debit: 0,
-                    credit: amount,
-                    balance: c.outstanding - amount,
-                  };
-                  return {
-                    ...c,
-                    outstanding: c.outstanding - amount,
-                    transactions: [creditTx, ...c.transactions],
-                  };
-                }
-                return c;
-              });
+              try {
+                const entryId = generateUUID();
 
-              setCustomers(updatedCustomers);
-              setTodayCollections(todayCollections + amount);
-              Alert.alert('Collected', `Successfully collected ৳ ${amount.toLocaleString()}`);
+                const change = {
+                  entityId: `ledger_entry:${entryId}`,
+                  type: 'create' as const,
+                  data: {
+                    id: entryId,
+                    store_id: storeId,
+                    customer_id: activeCustomer.id,
+                    total_amount: 0,
+                    paid_amount: amount,
+                    due_amount: 0,
+                    entry_type: 'credit',
+                    created_at: Date.now(),
+                  },
+                  createdAt: Date.now(),
+                };
+
+                await engine.enqueueLocalChange(change);
+                await loadData();
+
+                Alert.alert('Collected', `Successfully collected ৳ ${amount.toLocaleString()}! (Offline Safe)`);
+              } catch (err) {
+                console.error('Collect cash error:', err);
+                Alert.alert('Error', 'Failed to save payment locally.');
+              }
             },
           },
         ],

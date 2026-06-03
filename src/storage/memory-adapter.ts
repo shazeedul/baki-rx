@@ -26,6 +26,14 @@ export class MemoryAdapter implements StorageAdapter {
     this.entities.delete(entityId);
   }
 
+  async getAll(prefix?: string): Promise<EntityRecord[]> {
+    const all = Array.from(this.entities.values());
+    if (prefix) {
+      return all.filter((e) => e.id.startsWith(prefix));
+    }
+    return all;
+  }
+
   async addChange(change: ChangeRecord): Promise<number> {
     const id = this.nextChangeId++;
     const copy = { ...change, id } as ChangeRecord;

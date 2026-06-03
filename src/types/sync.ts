@@ -50,6 +50,7 @@ export interface StorageAdapter {
   get(entityId: string): Promise<EntityRecord | null>;
   put(entity: EntityRecord): Promise<void>;
   delete(entityId: string): Promise<void>;
+  getAll(prefix?: string): Promise<EntityRecord[]>;
   addChange(change: ChangeRecord): Promise<number>;
   getPendingChanges(limit?: number): Promise<ChangeRecord[]>;
   markChangeApplied(changeId: number): Promise<void>;
@@ -74,6 +75,7 @@ export interface SyncEngine {
   pushPending(): Promise<SyncResult>;
   pullRemote(since?: number): Promise<SyncResult>;
   getStatus(): SyncStatus;
+  setRemote(remote: RemoteClient): void;
   on(event: 'sync' | 'error' | 'status', cb: (payload?: any) => void): void;
   off(event: 'sync' | 'error' | 'status', cb: (payload?: any) => void): void;
 }

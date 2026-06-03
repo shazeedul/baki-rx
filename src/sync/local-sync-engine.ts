@@ -10,16 +10,28 @@ export class LocalSyncEngine implements SyncEngine {
   private intervalId: any = null;
   private listeners: Map<string, Set<Callback>> = new Map();
   private lastSyncAt?: number;
+  private pendingChangesCount = 0;
 
   constructor(adapter: StorageAdapter, options: SyncEngineOptions = {}) {
     this.adapter = adapter;
     this.options = { pullIntervalMs: 5000, batchSize: 25, ...options };
   }
 
+  private async updatePendingCount(): Promise<void> {
+    try {
+      const pending = await this.adapter.getPendingChanges(99999);
+      this.pendingChangesCount = pending.length;
+      this.emit('status', this.getStatus());
+    } catch (e) {
+      console.warn('Failed to update pending count', e);
+    }
+  }
+
   async start(): Promise<void> {
     if (this.running) return;
     await this.adapter.open();
     this.running = true;
+    await this.updatePendingCount();
     this.intervalId = setInterval(() => {
       this.pushPending().catch((err) => this.emit('error', err));
     }, this.options.pullIntervalMs);
@@ -47,7 +59,7 @@ export class LocalSyncEngine implements SyncEngine {
     } else if (change.type === 'delete') {
       await this.adapter.delete(change.entityId);
     }
-    this.emit('status', this.getStatus());
+    await this.updatePendingCount();
   }
 
   async pushPending(): Promise<SyncResult> {
@@ -60,8 +72,8 @@ export class LocalSyncEngine implements SyncEngine {
         if (ch.id) await this.adapter.markChangeApplied(ch.id);
       }
       this.lastSyncAt = Date.now();
+      await this.updatePendingCount();
       this.emit('sync', { pushed: pending.length });
-      this.emit('status', this.getStatus());
       return { pushed: pending.length, pulled: 0, conflicts: [] };
     }
 
@@ -72,8 +84,8 @@ export class LocalSyncEngine implements SyncEngine {
         await this.adapter.markChangeApplied(id);
       }
       this.lastSyncAt = Date.now();
+      await this.updatePendingCount();
       this.emit('sync', { pushed });
-      this.emit('status', this.getStatus());
       return { pushed, pulled: 0, conflicts: resp.conflicts ? resp.conflicts.map((c) => ({ change: pending.find((p) => p.id === c.changeId)!, reason: c.reason })) : [] };
     } catch (err: any) {
       this.emit('error', err);
@@ -102,8 +114,8 @@ export class LocalSyncEngine implements SyncEngine {
         pulled++;
       }
       this.lastSyncAt = Date.now();
+      await this.updatePendingCount();
       this.emit('sync', { pulled });
-      this.emit('status', this.getStatus());
       return { pushed: 0, pulled, conflicts: [] };
     } catch (err: any) {
       this.emit('error', err);
@@ -112,8 +124,11 @@ export class LocalSyncEngine implements SyncEngine {
   }
 
   getStatus(): SyncStatus {
-    // quick summary
-    return { lastSyncAt: this.lastSyncAt, pendingChanges: 0, running: this.running };
+    return { lastSyncAt: this.lastSyncAt, pendingChanges: this.pendingChangesCount, running: this.running };
+  }
+
+  setRemote(remote: RemoteClient): void {
+    this.options.remote = remote;
   }
 
   on(event: 'sync' | 'error' | 'status', cb: Callback): void {
@@ -133,4 +148,3 @@ export class LocalSyncEngine implements SyncEngine {
     for (const cb of set) cb(payload);
   }
 }
-
