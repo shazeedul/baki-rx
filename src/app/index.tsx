@@ -1,27 +1,26 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import * as Crypto from 'expo-crypto';
+import { useRouter } from 'expo-router';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  View,
+  Alert,
+  Linking,
+  Platform,
+  ScrollView,
+  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  ScrollView,
-  StyleSheet,
-  Platform,
-  Alert,
-  Linking,
-  Modal,
+  View
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import * as Crypto from 'expo-crypto';
 
-import { useTheme } from '../hooks/use-theme';
+import { AddCustomerDrawer } from '../components/AddCustomerDrawer';
+import { BottomTabInset, colors, radius, spacing } from '../constants/theme';
 import { useAuth } from '../context/auth-context';
 import { useSync } from '../context/sync-context';
-import { colors, spacing, radius, BottomTabInset } from '../constants/theme';
-import { AddCustomerDrawer } from '../components/AddCustomerDrawer';
 import { customerQueries, CustomerRow } from '../db/queries/customers';
-import { ledgerQueries, DefaulterRow, LedgerEntryRow } from '../db/queries/ledger';
+import { DefaulterRow, LedgerEntryRow, ledgerQueries } from '../db/queries/ledger';
+import { useTheme } from '../hooks/use-theme';
 import LoginScreen from './(auth)/login';
 
 // Custom icons
@@ -50,14 +49,9 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
-  // Redirect to login if not logged in
-  if (!isLoggedIn) {
-    return <LoginScreen />;
-  }
-
   // Active View State: 'dashboard' | 'customer-ledger'
   const [currentView, setCurrentView] = useState<'dashboard' | 'customer-ledger'>('dashboard');
-  
+
   // Local Database States
   const [totalBaki, setTotalBaki] = useState(0);
   const [todayCollection, setTodayCollection] = useState(0);
@@ -115,7 +109,7 @@ export default function HomeScreen() {
   // Trigger Cash Collection Dialog (Section 7b / 7c)
   const handleCollectCash = () => {
     if (!selectedCustomer) return;
-    
+
     Alert.prompt(
       'Collect Cash',
       `Enter payment amount collected from ${selectedCustomer.name}:`,
@@ -135,15 +129,15 @@ export default function HomeScreen() {
                 id: entryId,
                 store_id: storeId,
                 customer_id: selectedCustomer.id,
-                entry_type: 'payment', // payment received is a credit entry
+                entry_type: 'collection', // payment received is a credit entry
                 total_amount: 0,
                 paid_amount: amount,
                 note: 'Cash collection payment',
                 is_dirty: 1 // mandatory dirty flag
               });
-              
+
               Alert.alert('Success', `Collected ৳${amount.toLocaleString()}! (Offline Safe)`);
-              
+
               // Refresh data
               if (selectedCustomerId) {
                 await loadCustomerLedger(selectedCustomerId);
@@ -165,7 +159,7 @@ export default function HomeScreen() {
   // WhatsApp reminder sharing (Section 8 rules)
   const handleWhatsAppShare = () => {
     if (!selectedCustomer) return;
-    
+
     // Compute total outstanding from transaction list
     const outstanding = customerTx.reduce((sum, tx) => sum + (tx.total_amount - tx.paid_amount), 0);
     const msg = `Hello ${selectedCustomer.name}, your total outstanding dues at ${selectedBranch.split(' (')[0]} is ৳${outstanding.toLocaleString()}. Please clear it as soon as possible. Thank you.`;
@@ -190,6 +184,11 @@ export default function HomeScreen() {
     );
   }, [defaulters, dashboardSearch]);
 
+  // Redirect to login if not logged in (moved here to satisfy Rules of Hooks)
+  if (!isLoggedIn) {
+    return <LoginScreen />;
+  }
+
   // --- RENDERING VIEWS ---
 
   // 1. CUSTOMER LEDGER DETAIL SUB-SCREEN
@@ -203,8 +202,8 @@ export default function HomeScreen() {
         acc.push({
           ...tx,
           date: new Date(tx.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-          description: tx.entry_type === 'baki' ? 'Medicine Purchase' : 'Payment Received',
-          debit: tx.entry_type === 'baki' ? tx.total_amount : 0,
+          description: tx.entry_type === 'sale' ? 'Medicine Purchase' : 'Payment Received',
+          debit: tx.entry_type === 'sale' ? tx.total_amount : 0,
           credit: tx.paid_amount,
           balance: currentBal
         });
@@ -320,14 +319,14 @@ export default function HomeScreen() {
 
   // 2. DASHBOARD / HOME VIEW
   const statusColor = isOfflineMode ? '#f39c12' : (status.dirtyCount > 0 ? '#3498db' : '#2ecc71');
-  const syncLabel = isOfflineMode 
+  const syncLabel = isOfflineMode
     ? (status.dirtyCount > 0 ? `Offline (${status.dirtyCount} pending)` : 'Offline')
     : (status.dirtyCount > 0 ? `Syncing (${status.dirtyCount})` : 'Synced');
 
   return (
     <View style={[styles.mainContainer, { backgroundColor: theme.background }]}>
       <SafeAreaView style={styles.safeArea}>
-        
+
         {/* Top Info Header */}
         <View style={styles.topBar}>
           <View>
@@ -425,7 +424,7 @@ export default function HomeScreen() {
                   .join('')
                   .substring(0, 2)
                   .toUpperCase();
-                
+
                 // Color badges for rank
                 const rankColor = index === 0 ? '#d35400' : (index === 1 ? '#e67e22' : (index === 2 ? '#f39c12' : colors.textSecondary));
 

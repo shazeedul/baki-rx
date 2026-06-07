@@ -1,27 +1,27 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useRouter } from 'expo-router';
+import { useEffect, useRef, useState } from 'react';
 import {
-  View,
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  ScrollView,
-  StyleSheet,
-  Alert,
-  ActivityIndicator,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import { colors, spacing, radius } from '../../constants/theme';
+import { colors, radius, spacing } from '../../constants/theme';
 import { useAuth } from '../../context/auth-context';
 
 export default function LoginScreen() {
-  const { terminals, refreshTerminals, login, isLoggedIn } = useAuth();
+  const { stores, terminals, refreshTerminals, syncTerminals, syncTenantByName, login, isLoggedIn } = useAuth();
   const router = useRouter();
 
-  const [selectedTerminalId, setSelectedTerminalId] = useState('');
+  const [selectedStoreId, setSelectedStoreId] = useState('');
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [mobile, setMobile] = useState('');
-  
+
   // 4 separate PIN digit states
   const [pin, setPin] = useState(['', '', '', '']);
   const pinRefs = [
@@ -33,9 +33,21 @@ export default function LoginScreen() {
 
   const [loading, setLoading] = useState(false);
 
-  // Load terminals on mount
+  // Tenant screen states
+  const [view, setView] = useState<'login' | 'tenant'>('login');
+  const [tenantName, setTenantName] = useState('');
+  const [syncingTenant, setSyncingTenant] = useState(false);
+
+  // Load terminals on mount and set initial view based on data availability
   useEffect(() => {
-    refreshTerminals();
+    (async () => {
+      const list = await refreshTerminals();
+      if (list.length === 0) {
+        setView('tenant');
+      } else {
+        setView('login');
+      }
+    })();
   }, []);
 
   // Redirect if logged in
@@ -66,8 +78,8 @@ export default function LoginScreen() {
   };
 
   const handleLoginSubmit = async () => {
-    if (!selectedTerminalId) {
-      Alert.alert('Selection Required', 'Please select a branch terminal.');
+    if (!selectedStoreId) {
+      Alert.alert('Selection Required', 'Please select a branch store.');
       return;
     }
     if (mobile.length < 8) {
@@ -83,7 +95,7 @@ export default function LoginScreen() {
 
     setLoading(true);
     try {
-      const success = await login(selectedTerminalId, mobile, fullPin);
+      const success = await login(selectedStoreId, mobile, fullPin);
       if (success) {
         router.replace('/');
       }
@@ -101,16 +113,99 @@ export default function LoginScreen() {
   const badgeLabel = isOfflineReady ? 'Offline Mode Ready' : 'Online Initial Setup Needed';
 
   // Find selected terminal details
-  const activeTerminal = terminals.find(t => t.store_id === selectedTerminalId);
-  const dropdownLabel = activeTerminal 
-    ? `${activeTerminal.branch_name} (${activeTerminal.store_name})`
-    : 'Choose your terminal';
+  const activeStore = stores.find(s => s.id === selectedStoreId);
+  const dropdownLabel = activeStore
+    ? `${activeStore.store_name}`
+    : 'Choose your store';
+
+  if (view === 'tenant') {
+    const handleTenantSync = async () => {
+      if (!tenantName.trim()) {
+        Alert.alert('Name Required', 'Please enter your pharmacy tenant name.');
+        return;
+      }
+      setSyncingTenant(true);
+      try {
+        const success = await syncTenantByName(tenantName.trim());
+        if (success) {
+          Alert.alert('Sync Success', 'Pharmacy branches and terminals synced successfully.');
+          setView('login');
+        } else {
+          Alert.alert('Tenant Not Found', 'No pharmacy found with that name. Please check spelling & try again.');
+        }
+      } catch (err) {
+        Alert.alert('Sync Failed', 'Failed to reach cloud database. Please check your internet connection.');
+      } finally {
+        setSyncingTenant(false);
+      }
+    };
+
+    return (
+      <View style={styles.container}>
+        <SafeAreaView style={styles.safeArea}>
+          <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+
+            <View style={styles.header}>
+              <Text style={styles.title}>Baki Rx Ledger</Text>
+              <Text style={styles.subtitle}>Tenant Setup & Initialization</Text>
+            </View>
+
+            <View style={styles.formCard}>
+              <Text style={styles.tenantLabel}>Find Your Pharmacy</Text>
+              <Text style={styles.tenantHint}>
+                Enter the exact pharmacy business name registered in the admin console.
+              </Text>
+
+              <TextInput
+                style={styles.input}
+                placeholder="e.g. Baki Pharmacy"
+                placeholderTextColor={colors.textMuted}
+                value={tenantName}
+                onChangeText={setTenantName}
+                autoCapitalize="words"
+              />
+
+              <TouchableOpacity
+                style={styles.primaryButton}
+                activeOpacity={0.8}
+                onPress={handleTenantSync}
+                disabled={syncingTenant}
+              >
+                {syncingTenant ? (
+                  <ActivityIndicator size="small" color="#ffffff" />
+                ) : (
+                  <Text style={styles.primaryButtonText}>Search & Sync Data</Text>
+                )}
+              </TouchableOpacity>
+
+              {terminals.length > 0 && (
+                <TouchableOpacity
+                  style={styles.secondaryButton}
+                  activeOpacity={0.8}
+                  onPress={() => setView('login')}
+                  disabled={syncingTenant}
+                >
+                  <Text style={styles.secondaryButtonText}>Back to Login</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            <View style={styles.footer}>
+              <Text style={styles.footerText}>
+                🌐 Online Sync: Downloads configuration from cloud databases.
+              </Text>
+            </View>
+          </ScrollView>
+        </SafeAreaView>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
         <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-          
+
           {/* Header branding */}
           <View style={styles.header}>
             <Text style={styles.title}>Baki Rx Ledger</Text>
@@ -119,7 +214,7 @@ export default function LoginScreen() {
 
           {/* Form Card */}
           <View style={styles.formCard}>
-            
+
             {/* Offline Badge */}
             <View style={[styles.badge, { backgroundColor: badgeBg }]}>
               <View style={[styles.badgeDot, { backgroundColor: badgeColor }]} />
@@ -129,13 +224,13 @@ export default function LoginScreen() {
             </View>
 
             {/* Dropdown Selector */}
-            <Text style={styles.label}>Select Branch Terminal</Text>
+            <Text style={styles.label}>Select Branch Store</Text>
             <TouchableOpacity
               style={styles.dropdownButton}
               activeOpacity={0.8}
               onPress={() => setDropdownOpen(!dropdownOpen)}
             >
-              <Text style={{ color: selectedTerminalId ? colors.textPrimary : colors.textMuted, fontSize: 14 }}>
+              <Text style={{ color: selectedStoreId ? colors.textPrimary : colors.textMuted, fontSize: 14 }}>
                 {dropdownLabel}
               </Text>
               <Text style={{ color: colors.textSecondary, fontSize: 12 }}>▼</Text>
@@ -144,17 +239,23 @@ export default function LoginScreen() {
             {/* Dropdown Options */}
             {dropdownOpen && (
               <View style={styles.dropdownList}>
-                {terminals.length === 0 ? (
+                {stores.length === 0 ? (
                   <View style={styles.emptyDropdown}>
-                    <Text style={styles.emptyDropdownText}>No terminals synced.</Text>
-                    <TouchableOpacity 
-                      style={styles.syncBtn} 
+                    <Text style={styles.emptyDropdownText}>No stores synced.</Text>
+                    <TouchableOpacity
+                      style={styles.syncBtn}
                       onPress={async () => {
                         setLoading(true);
                         try {
-                          const tenantId = process.env.EXPO_PUBLIC_TENANT_ID || 'baki-tenant-id';
-                          await refreshTerminals();
-                          Alert.alert('Sync Complete', 'Local terminals updated successfully.');
+                          const count = await syncTerminals();
+                          if (count === 0) {
+                            Alert.alert(
+                              'Sync Failed',
+                              'No terminals found for this tenant. Please register terminals in the admin panel.'
+                            );
+                          } else {
+                            Alert.alert('Sync Complete', `${count} store terminal(s) synced successfully.`);
+                          }
                         } catch (err) {
                           Alert.alert('Sync Failed', 'Please connect to the internet to sync terminals.');
                         } finally {
@@ -166,17 +267,17 @@ export default function LoginScreen() {
                     </TouchableOpacity>
                   </View>
                 ) : (
-                  terminals.map((t) => (
+                  stores.map((s) => (
                     <TouchableOpacity
-                      key={t.id}
+                      key={s.id}
                       style={styles.dropdownOption}
                       onPress={() => {
-                        setSelectedTerminalId(t.store_id);
+                        setSelectedStoreId(s.id);
                         setDropdownOpen(false);
                       }}
                     >
                       <Text style={styles.optionText}>
-                        {t.branch_name} <Text style={styles.optionSubText}>({t.store_name})</Text>
+                        <Text style={styles.optionSubText}>{s.store_name}</Text>
                       </Text>
                     </TouchableOpacity>
                   ))
@@ -225,6 +326,11 @@ export default function LoginScreen() {
               ) : (
                 <Text style={styles.primaryButtonText}>Activate Terminal</Text>
               )}
+            </TouchableOpacity>
+
+            {/* Switch Tenant option */}
+            <TouchableOpacity onPress={() => setView('tenant')}>
+              <Text style={styles.switchTenantText}>Switch Tenant / Pharmacy</Text>
             </TouchableOpacity>
           </View>
 
@@ -409,5 +515,40 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.textMuted,
     textAlign: 'center',
+  },
+  secondaryButton: {
+    height: 48,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: spacing.md,
+    backgroundColor: colors.background,
+  },
+  secondaryButtonText: {
+    color: colors.textSecondary,
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  tenantLabel: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.textPrimary,
+    marginBottom: spacing.xs,
+  },
+  tenantHint: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    marginBottom: spacing.lg,
+    lineHeight: 18,
+  },
+  switchTenantText: {
+    color: colors.primary,
+    fontSize: 13,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginTop: spacing.lg,
+    textDecorationLine: 'underline',
   },
 });

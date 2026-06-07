@@ -16,7 +16,7 @@ export interface CloudLedgerEntry {
   id: string;
   store_id: string;
   customer_id: string;
-  entry_type: 'sale' | 'collection' | 'debit' | 'credit' | 'baki' | 'payment'; // supabase uses sale/collection or baki/payment. Let's map accordingly.
+  entry_type: 'sale' | 'collection' | 'debit' | 'credit'; // supabase uses sale/collection. Let's map accordingly.
   total_amount: number;
   paid_amount: number;
   note: string | null;
@@ -34,7 +34,95 @@ export interface CloudTerminal {
   created_at: string;
 }
 
+export interface CloudTenant {
+  id: string;
+  business_name: string;
+  created_at: string;
+}
+
+export interface CloudStore {
+  id: string;
+  tenant_id: string;
+  store_name: string;
+  location: string | null;
+  created_at: string;
+}
+
 export const cloudAdapter = {
+  async getTenantByName(businessName: string): Promise<CloudTenant | null> {
+    if (MODE === 'custom') {
+      try {
+        const response = await fetch(`${FUTURE_API_URL}/tenants?business_name=${encodeURIComponent(businessName)}`);
+        if (!response.ok) throw new Error(`Custom API getTenantByName status ${response.status}`);
+        const data = await response.json();
+        return data && data.length > 0 ? data[0] : null;
+      } catch (err) {
+        console.error('Custom API getTenantByName failed:', err);
+        throw err;
+      }
+    } else {
+      const { data, error } = await supabase
+        .from('tenants')
+        .select('*')
+        .ilike('business_name', businessName)
+        .limit(1);
+
+      if (error) {
+        console.error('Supabase getTenantByName failed:', error);
+        throw error;
+      }
+      return data && data.length > 0 ? data[0] : null;
+    }
+  },
+
+  async pullTenants(): Promise<CloudTenant[]> {
+    if (MODE === 'custom') {
+      try {
+        const response = await fetch(`${FUTURE_API_URL}/tenants`);
+        if (!response.ok) throw new Error(`Custom API pullTenants status ${response.status}`);
+        return await response.json();
+      } catch (err) {
+        console.error('Custom API pullTenants failed:', err);
+        throw err;
+      }
+    } else {
+      const { data, error } = await supabase
+        .from('tenants')
+        .select('*');
+
+      if (error) {
+        console.error('Supabase pullTenants failed:', error);
+        throw error;
+      }
+      return data || [];
+    }
+  },
+
+  async pullStores(tenantId: string): Promise<CloudStore[]> {
+    if (MODE === 'custom') {
+      try {
+        const response = await fetch(`${FUTURE_API_URL}/stores?tenant_id=${encodeURIComponent(tenantId)}`);
+        if (!response.ok) throw new Error(`Custom API pullStores status ${response.status}`);
+        return await response.json();
+      } catch (err) {
+        console.error('Custom API pullStores failed:', err);
+        throw err;
+      }
+    } else {
+      const { data, error } = await supabase
+        .from('stores')
+        .select('*')
+        .eq('tenant_id', tenantId);
+      console.log('Supabase pullStores result:', { data, error });
+
+      if (error) {
+        console.error('Supabase pullStores failed:', error);
+        throw error;
+      }
+      return data || [];
+    }
+  },
+
   async pullTerminals(tenantId: string): Promise<CloudTerminal[]> {
     if (MODE === 'custom') {
       try {
@@ -123,16 +211,9 @@ export const cloudAdapter = {
         throw err;
       }
     } else {
-      // Supabase PG schema uses 'sale' / 'collection' for entry_type (Section 5b)
-      // but SQLite local uses 'baki' / 'payment' (Section 5a). Let's map it:
-      const mappedRows = rows.map(r => ({
-        ...r,
-        entry_type: r.entry_type === 'baki' ? 'sale' : (r.entry_type === 'payment' ? 'collection' : r.entry_type)
-      }));
-
       const { error } = await supabase
         .from('ledger_entries')
-        .upsert(mappedRows, { onConflict: 'id' });
+        .upsert(rows, { onConflict: 'id' });
 
       if (error) {
         console.error('Supabase upsertLedgerEntries failed:', error);
@@ -163,13 +244,7 @@ export const cloudAdapter = {
         throw error;
       }
 
-      // Map back cloud 'sale' / 'collection' to local 'baki' / 'payment'
-      const mappedData = (data || []).map(r => ({
-        ...r,
-        entry_type: r.entry_type === 'sale' ? 'baki' : (r.entry_type === 'collection' ? 'payment' : r.entry_type)
-      }));
-
-      return mappedData as CloudLedgerEntry[];
+      return (data || []) as CloudLedgerEntry[];
     }
   }
 };

@@ -4,7 +4,7 @@ export interface LedgerEntryRow {
   id: string;
   store_id: string;
   customer_id: string;
-  entry_type: 'baki' | 'payment';
+  entry_type: 'sale' | 'collection';
   total_amount: number;
   paid_amount: number;
   due_amount: number; // generated virtual column or computed
@@ -112,14 +112,14 @@ export const ledgerQueries = {
     filters: {
       fromDate: string | null;
       toDate: string | null;
-      entryType: 'all' | 'baki' | 'payment';
+      entryType: 'all' | 'sale' | 'collection';
       customerSearch: string;
     },
     limit = 30,
     offset = 0
   ): Promise<ReportRow[]> {
     const db = getDatabase();
-    
+
     const fromDateNull = filters.fromDate ? 0 : 1;
     const fromDate = filters.fromDate || '';
 

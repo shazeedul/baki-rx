@@ -3,6 +3,8 @@ import NetInfo from '@react-native-community/netinfo';
 import { customerQueries } from '../db/queries/customers';
 import { ledgerQueries } from '../db/queries/ledger';
 import { terminalQueries } from '../db/queries/terminals';
+import { tenantQueries } from '../db/queries/tenants';
+import { storeQueries } from '../db/queries/stores';
 import { cloudAdapter } from '../services/cloudAdapter';
 import { initDatabase } from '../db/schema';
 
@@ -32,7 +34,7 @@ export class SyncEngine {
 
   // Sourced from environment or passed down
   private getTenantId(): string {
-    return process.env.EXPO_PUBLIC_TENANT_ID || 'baki-tenant-id';
+    return process.env.EXPO_PUBLIC_TENANT_ID || '00000000-0000-0000-0000-000000000000';
   }
 
   async start(storeId?: string): Promise<void> {
@@ -106,6 +108,7 @@ export class SyncEngine {
           tenant_id: r.tenant_id,
           store_name: r.store_name || r.business_name || 'Baki Pharmacy',
           branch_name: r.branch_name || 'Main Branch',
+          phone: r.phone || '01711111111',
           pin_hash: r.pin_hash,
           jwt_cache: r.jwt_cache || null,
           created_at: r.created_at || new Date().toISOString()
@@ -117,6 +120,52 @@ export class SyncEngine {
       this.emitStatus();
     } catch (err) {
       console.error('syncTerminals error:', err);
+      throw err;
+    }
+  }
+
+  async syncTenants(): Promise<void> {
+    const isConnected = await this.checkConnection();
+    if (!isConnected) {
+      throw new Error('No internet connection to sync tenants.');
+    }
+
+    try {
+      const rows = await cloudAdapter.pullTenants();
+      if (rows && rows.length > 0) {
+        const mappedRows = rows.map((r: any) => ({
+          id: r.id,
+          business_name: r.business_name,
+          created_at: r.created_at || new Date().toISOString()
+        }));
+        await tenantQueries.upsertTenants(mappedRows);
+      }
+    } catch (err) {
+      console.error('syncTenants error:', err);
+      throw err;
+    }
+  }
+
+  async syncStores(tenantId: string): Promise<void> {
+    const isConnected = await this.checkConnection();
+    if (!isConnected) {
+      throw new Error('No internet connection to sync stores.');
+    }
+
+    try {
+      const rows = await cloudAdapter.pullStores(tenantId);
+      if (rows && rows.length > 0) {
+        const mappedRows = rows.map((r: any) => ({
+          id: r.id,
+          tenant_id: r.tenant_id,
+          store_name: r.store_name,
+          location: r.location || null,
+          created_at: r.created_at || new Date().toISOString()
+        }));
+        await storeQueries.upsertStores(mappedRows);
+      }
+    } catch (err) {
+      console.error('syncStores error:', err);
       throw err;
     }
   }
@@ -222,7 +271,7 @@ export class SyncEngine {
           id: rl.id,
           store_id: rl.store_id,
           customer_id: rl.customer_id,
-          entry_type: rl.entry_type as 'baki' | 'payment',
+          entry_type: rl.entry_type as 'sale' | 'collection',
           total_amount: rl.total_amount,
           paid_amount: rl.paid_amount,
           note: rl.note,

@@ -17,6 +17,7 @@ describe('Relational DB SQLite Queries', () => {
       tenant_id: 'tenant-1',
       store_name: 'Store One',
       branch_name: 'Branch One',
+      phone: '01712345678',
       pin_hash: 'hash-value',
       jwt_cache: null,
       created_at: new Date().toISOString()
@@ -24,7 +25,7 @@ describe('Relational DB SQLite Queries', () => {
 
     await terminalQueries.upsertTerminals([term]);
     
-    const fetched = await terminalQueries.getTerminalByPhoneAndStore('01712345678', 'store-1'); // none exists with phone '01712345678'
+    const fetched = await terminalQueries.getTerminalByPhoneAndStore('01700000000', 'store-1'); // none exists with phone '01700000000'
     expect(fetched).toBeNull();
 
     // Now insert one with phone in mock list
@@ -79,7 +80,7 @@ describe('Relational DB SQLite Queries', () => {
       id: 'l-1',
       store_id: storeId,
       customer_id: 'c-1',
-      entry_type: 'baki',
+      entry_type: 'sale',
       total_amount: 500,
       paid_amount: 100,
       note: 'baki sale',
@@ -91,7 +92,7 @@ describe('Relational DB SQLite Queries', () => {
       id: 'l-2',
       store_id: storeId,
       customer_id: 'c-2',
-      entry_type: 'baki',
+      entry_type: 'sale',
       total_amount: 300,
       paid_amount: 300,
       note: 'paid sale',

@@ -1,40 +1,60 @@
-import { NativeTabs } from 'expo-router/unstable-native-tabs';
+import { Tabs } from 'expo-router';
 import { useColorScheme } from 'react-native';
-
-import { Colors } from '@/constants/theme';
+import { Colors, colors as themeColors } from '@/constants/theme';
+import { useAuth } from '@/context/auth-context';
+import { Home, PlusCircle, ClipboardList } from 'lucide-react-native';
 
 export default function AppTabs() {
   const scheme = useColorScheme();
   const colors = Colors[scheme === 'unspecified' ? 'light' : scheme];
+  const { isLoggedIn } = useAuth();
+
+  // Hide the tab bar navigation if the user is not logged in
+  if (!isLoggedIn) {
+    return (
+      <Tabs
+        screenOptions={{
+          tabBarStyle: { display: 'none' },
+          headerShown: false,
+        }}
+      />
+    );
+  }
 
   return (
-    <NativeTabs
-      backgroundColor={colors.background}
-      indicatorColor={colors.backgroundElement}
-      labelStyle={{ selected: { color: colors.text } }}>
-      <NativeTabs.Trigger name="index">
-        <NativeTabs.Trigger.Label>Home</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon
-          src={require('@/assets/images/tabIcons/home.png')}
-          renderingMode="template"
-        />
-      </NativeTabs.Trigger>
-
-      <NativeTabs.Trigger name="explore">
-        <NativeTabs.Trigger.Label>Explore</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon
-          src={require('@/assets/images/tabIcons/explore.png')}
-          renderingMode="template"
-        />
-      </NativeTabs.Trigger>
-
-      <NativeTabs.Trigger name="report">
-        <NativeTabs.Trigger.Label>Reports</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon
-          src={require('@/assets/images/tabIcons/explore.png')}
-          renderingMode="template"
-        />
-      </NativeTabs.Trigger>
-    </NativeTabs>
+    <Tabs
+      screenOptions={{
+        tabBarActiveTintColor: themeColors.primary,
+        tabBarInactiveTintColor: '#64748B',
+        tabBarStyle: {
+          backgroundColor: colors.background,
+          borderTopWidth: 1,
+          borderTopColor: '#E2E8F0',
+        },
+        headerShown: false,
+      }}
+    >
+      <Tabs.Screen
+        name="index"
+        options={{
+          title: 'Home',
+          tabBarIcon: ({ color, size }) => <Home color={color} size={size} />,
+        }}
+      />
+      <Tabs.Screen
+        name="entry"
+        options={{
+          title: 'New Sale',
+          tabBarIcon: ({ color, size }) => <PlusCircle color={color} size={size} />,
+        }}
+      />
+      <Tabs.Screen
+        name="report"
+        options={{
+          title: 'Reports',
+          tabBarIcon: ({ color, size }) => <ClipboardList color={color} size={size} />,
+        }}
+      />
+    </Tabs>
   );
 }

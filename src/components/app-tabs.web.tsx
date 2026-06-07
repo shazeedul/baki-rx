@@ -8,29 +8,37 @@ import {
 } from 'expo-router/ui';
 import { SymbolView } from 'expo-symbols';
 import { Pressable, useColorScheme, View, StyleSheet } from 'react-native';
+import { Slot } from 'expo-router';
+import { Home, PlusCircle, ClipboardList } from 'lucide-react-native';
 
 import { ExternalLink } from './external-link';
 import { ThemedText } from './themed-text';
 import { ThemedView } from './themed-view';
 
-import { Colors, MaxContentWidth, Spacing } from '@/constants/theme';
-
+import { Colors, MaxContentWidth, Spacing, colors as themeColors } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
 
 export default function AppTabs() {
+  const { isLoggedIn } = useAuth();
+
+  // Hide the tab bar navigation if the user is not logged in
+  if (!isLoggedIn) {
+    return <Slot />;
+  }
+
   return (
     <Tabs>
       <TabSlot style={{ height: '100%' }} />
       <TabList asChild>
         <CustomTabList>
-          <TabTrigger name="home" href="/" asChild>
-            <TabButton>Home</TabButton>
+          <TabTrigger name="index" href="/" asChild>
+            <TabButton icon={Home}>Home</TabButton>
           </TabTrigger>
-          <TabTrigger name="explore" href="/explore" asChild>
-            <TabButton>Explore</TabButton>
+          <TabTrigger name="entry" href={"/entry" as any} asChild>
+            <TabButton icon={PlusCircle}>New Sale</TabButton>
           </TabTrigger>
           <TabTrigger name="report" href={"/report" as any} asChild>
-            <TabButton>Reports</TabButton>
+            <TabButton icon={ClipboardList}>Reports</TabButton>
           </TabTrigger>
         </CustomTabList>
       </TabList>
@@ -38,16 +46,31 @@ export default function AppTabs() {
   );
 }
 
-export function TabButton({ children, isFocused, ...props }: TabTriggerSlotProps) {
+interface TabButtonProps extends TabTriggerSlotProps {
+  icon: React.ComponentType<{ color: string; size: number }>;
+}
+
+export function TabButton({ children, isFocused, icon: IconComponent, ...props }: TabButtonProps) {
   return (
     <Pressable {...props} style={({ pressed }) => pressed && styles.pressed}>
-      <ThemedView
-        type={isFocused ? 'backgroundSelected' : 'backgroundElement'}
-        style={styles.tabButtonView}>
-        <ThemedText type="small" themeColor={isFocused ? 'text' : 'textSecondary'}>
-          {children}
-        </ThemedText>
-      </ThemedView>
+      <View
+        style={[
+          styles.tabButtonView,
+          isFocused && { borderBottomWidth: 3, borderBottomColor: themeColors.primary }
+        ]}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <IconComponent color={isFocused ? themeColors.primary : '#64748B'} size={16} />
+          <ThemedText 
+            type="smallBold" 
+            style={{ 
+              color: isFocused ? themeColors.primary : '#64748B',
+              paddingBottom: 4,
+            }}
+          >
+            {children}
+          </ThemedText>
+        </View>
+      </View>
     </Pressable>
   );
 }
@@ -55,13 +78,12 @@ export function TabButton({ children, isFocused, ...props }: TabTriggerSlotProps
 export function CustomTabList(props: TabListProps) {
   const scheme = useColorScheme();
   const colors = Colors[scheme === 'unspecified' ? 'light' : scheme];
-  const { isLoggedIn } = useAuth();
 
   return (
-    <View {...props} style={[styles.tabListContainer, !isLoggedIn && { display: 'none' }]}>
+    <View {...props} style={styles.tabListContainer}>
       <ThemedView type="backgroundElement" style={styles.innerContainer}>
-        <ThemedText type="smallBold" style={styles.brandText}>
-          Expo Starter
+        <ThemedText type="smallBold" style={[styles.brandText, { color: themeColors.primary }]}>
+          Baki Rx Ledger
         </ThemedText>
 
         {props.children}
@@ -99,9 +121,13 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     gap: Spacing.two,
     maxWidth: MaxContentWidth,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
   brandText: {
     marginRight: 'auto',
+    fontSize: 16,
+    fontWeight: '800',
   },
   pressed: {
     opacity: 0.7,

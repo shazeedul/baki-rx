@@ -19,10 +19,15 @@ import { CustomerSearchDropdown } from '../components/CustomerSearchDropdown';
 import { AddCustomerDrawer } from '../components/AddCustomerDrawer';
 import { ledgerQueries } from '../db/queries/ledger';
 import { CustomerRow } from '../db/queries/customers';
+import LoginScreen from './(auth)/login';
 
 export default function NewSaleEntryScreen() {
   const router = useRouter();
-  const { storeId } = useAuth();
+  const { isLoggedIn, storeId } = useAuth();
+
+  if (!isLoggedIn) {
+    return <LoginScreen />;
+  }
   
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerRow | null>(null);
   const [totalBill, setTotalBill] = useState('');
@@ -56,7 +61,7 @@ export default function NewSaleEntryScreen() {
         id: entryId,
         store_id: storeId,
         customer_id: selectedCustomer.id,
-        entry_type: 'baki', // Medicine purchase (baki) is a baki entry
+        entry_type: 'sale', // Medicine purchase (baki) is recorded as a sale entry
         total_amount: bill,
         paid_amount: paid,
         note: note.trim() || null,

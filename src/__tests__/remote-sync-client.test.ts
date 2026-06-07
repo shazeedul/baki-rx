@@ -69,7 +69,7 @@ describe('RemoteSyncClient', () => {
           total_amount: 100,
           paid_amount: 20,
           due_amount: 80,
-          entry_type: 'debit',
+          entry_type: 'sale',
         },
         createdAt: 1680000000000,
       },
@@ -86,7 +86,7 @@ describe('RemoteSyncClient', () => {
         total_amount: 100,
         paid_amount: 20,
         due_amount: 80,
-        entry_type: 'debit',
+        entry_type: 'sale',
       }),
       { onConflict: 'id' }
     );
@@ -135,7 +135,7 @@ describe('RemoteSyncClient', () => {
                     total_amount: 50,
                     paid_amount: 0,
                     due_amount: 50,
-                    entry_type: 'debit',
+                    entry_type: 'sale',
                     created_at: '2026-06-03T18:05:00.000Z',
                   },
                 ],

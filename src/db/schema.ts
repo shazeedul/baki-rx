@@ -10,6 +10,8 @@ class WebSqlDatabase {
   private terminals: any[] = [];
   private customers: any[] = [];
   private ledger_entries: any[] = [];
+  private tenants: any[] = [];
+  private stores: any[] = [];
 
   constructor() {
     this.loadFromLocalStorage();
@@ -25,6 +27,8 @@ class WebSqlDatabase {
         this.terminals = JSON.parse(localStorage.getItem('baki_terminals') || '[]');
         this.customers = JSON.parse(localStorage.getItem('baki_customers') || '[]');
         this.ledger_entries = JSON.parse(localStorage.getItem('baki_ledger_entries') || '[]');
+        this.tenants = JSON.parse(localStorage.getItem('baki_tenants') || '[]');
+        this.stores = JSON.parse(localStorage.getItem('baki_stores') || '[]');
       } catch (e) {
         console.error('Failed to load DB from localStorage', e);
       }
@@ -37,6 +41,8 @@ class WebSqlDatabase {
         localStorage.setItem('baki_terminals', JSON.stringify(this.terminals));
         localStorage.setItem('baki_customers', JSON.stringify(this.customers));
         localStorage.setItem('baki_ledger_entries', JSON.stringify(this.ledger_entries));
+        localStorage.setItem('baki_tenants', JSON.stringify(this.tenants));
+        localStorage.setItem('baki_stores', JSON.stringify(this.stores));
       } catch (e) {
         console.error('Failed to save DB to localStorage', e);
       }
@@ -54,9 +60,9 @@ class WebSqlDatabase {
 
     // 1. Terminals INSERT OR REPLACE
     if (query.startsWith('INSERT OR REPLACE INTO terminals')) {
-      const [id, store_id, tenant_id, store_name, branch_name, pin_hash, jwt_cache, created_at] = actualParams;
+      const [id, store_id, tenant_id, store_name, branch_name, phone, pin_hash, jwt_cache, created_at] = actualParams;
       const index = this.terminals.findIndex(t => t.id === id);
-      const row = { id, store_id, tenant_id, store_name, branch_name, pin_hash, jwt_cache, created_at };
+      const row = { id, store_id, tenant_id, store_name, branch_name, phone, pin_hash, jwt_cache, created_at };
       if (index >= 0) {
         this.terminals[index] = row;
       } else {
@@ -145,6 +151,34 @@ class WebSqlDatabase {
       return { lastInsertRowId: 1, changes: 1 };
     }
 
+    // 9. Tenants INSERT OR REPLACE
+    if (query.startsWith('INSERT OR REPLACE INTO tenants')) {
+      const [id, business_name, created_at] = actualParams;
+      const index = this.tenants.findIndex(t => t.id === id);
+      const row = { id, business_name, created_at };
+      if (index >= 0) {
+        this.tenants[index] = row;
+      } else {
+        this.tenants.push(row);
+      }
+      this.saveToLocalStorage();
+      return { lastInsertRowId: 1, changes: 1 };
+    }
+
+    // 10. Stores INSERT OR REPLACE
+    if (query.startsWith('INSERT OR REPLACE INTO stores')) {
+      const [id, tenant_id, store_name, location, created_at] = actualParams;
+      const index = this.stores.findIndex(s => s.id === id);
+      const row = { id, tenant_id, store_name, location, created_at };
+      if (index >= 0) {
+        this.stores[index] = row;
+      } else {
+        this.stores.push(row);
+      }
+      this.saveToLocalStorage();
+      return { lastInsertRowId: 1, changes: 1 };
+    }
+
     console.warn('Web DB Unrecognized runAsync SQL:', sql);
     return { lastInsertRowId: 0, changes: 0 };
   }
@@ -190,6 +224,17 @@ class WebSqlDatabase {
       return this.ledger_entries.filter(l => l.is_dirty === 1) as T[];
     }
 
+    // 4a. Select all tenants
+    if (query.includes('FROM tenants')) {
+      return this.tenants as T[];
+    }
+
+    // 4b. Select stores by tenant
+    if (query.includes('FROM stores WHERE tenant_id = ?')) {
+      const [tenant_id] = actualParams;
+      return this.stores.filter(s => s.tenant_id === tenant_id) as T[];
+    }
+
     // 5. Select defaulters
     if (query.includes('GROUP BY le.customer_id') || query.includes('HAVING total_due > 0')) {
       const [store_id, limit] = actualParams;
@@ -218,7 +263,7 @@ class WebSqlDatabase {
       const [store_id, fromDateNull, fromDate, toDateNull, toDate, typeNull, entryType, searchNull, searchName, searchPhone, limit, offset] = actualParams;
       const filtered = this.ledger_entries.filter(le => {
         if (le.store_id !== store_id) return false;
-        
+
         // Find joined customer
         const cust = this.customers.find(c => c.id === le.customer_id);
         if (!cust) return false;
@@ -309,6 +354,8 @@ class WebSqlDatabase {
     this.terminals = [];
     this.customers = [];
     this.ledger_entries = [];
+    this.tenants = [];
+    this.stores = [];
   }
 }
 
@@ -325,7 +372,7 @@ let webDb: WebSqlDatabase | null = null;
 export function getDatabase(): AppDatabase {
   const isWeb = typeof window !== 'undefined' && typeof window.localStorage !== 'undefined';
   const isNodeTest = typeof process !== 'undefined' && process.env.NODE_ENV === 'test';
-  
+
   if (isWeb || isNodeTest) {
     if (!webDb) {
       webDb = new WebSqlDatabase();
@@ -361,12 +408,27 @@ export async function initDatabase() {
     await db.execAsync(`
       PRAGMA foreign_keys = ON;
 
+      CREATE TABLE IF NOT EXISTS tenants (
+        id            TEXT PRIMARY KEY,
+        business_name TEXT NOT NULL,
+        created_at    TEXT DEFAULT (datetime('now'))
+      );
+
+      CREATE TABLE IF NOT EXISTS stores (
+        id          TEXT PRIMARY KEY,
+        tenant_id   TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+        store_name  TEXT NOT NULL,
+        location    TEXT,
+        created_at  TEXT DEFAULT (datetime('now'))
+      );
+
       CREATE TABLE IF NOT EXISTS terminals (
         id          TEXT PRIMARY KEY,
         store_id    TEXT NOT NULL,
         tenant_id   TEXT NOT NULL,
         store_name  TEXT NOT NULL,
         branch_name TEXT NOT NULL,
+        phone       TEXT NOT NULL,
         pin_hash    TEXT NOT NULL,
         jwt_cache   TEXT,
         created_at  TEXT DEFAULT (datetime('now'))
@@ -386,7 +448,7 @@ export async function initDatabase() {
         id            TEXT PRIMARY KEY,
         store_id      TEXT NOT NULL,
         customer_id   TEXT NOT NULL REFERENCES customers(id),
-        entry_type    TEXT NOT NULL CHECK(entry_type IN ('baki','payment')),
+        entry_type    TEXT NOT NULL CHECK(entry_type IN ('sale','collection')),
         total_amount  REAL NOT NULL,
         paid_amount   REAL NOT NULL DEFAULT 0,
         due_amount    REAL GENERATED ALWAYS AS (total_amount - paid_amount) VIRTUAL,

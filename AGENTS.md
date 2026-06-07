@@ -94,8 +94,8 @@ User Action
 ### Delta Math Rule
 **Never sync a computed balance.** Sync only raw transaction deltas:
 ```json
-{ "type": "debit", "amount": 2500 }   // baki
-{ "type": "credit", "amount": 1000 }  // payment
+{ "type": "debit", "amount": 2500 }   // sale
+{ "type": "credit", "amount": 1000 }  // collection
 ```
 The running balance is always derived locally by summing ledger deltas for a customer.
 
@@ -202,7 +202,7 @@ CREATE TABLE ledger_entries (
   id            TEXT PRIMARY KEY, -- UUID, generated locally
   store_id      TEXT NOT NULL,
   customer_id   TEXT NOT NULL REFERENCES customers(id),
-  entry_type    TEXT NOT NULL CHECK(entry_type IN ('baki','payment')),
+  entry_type    TEXT NOT NULL CHECK(entry_type IN ('sale','collection')),
   total_amount  REAL NOT NULL,
   paid_amount   REAL NOT NULL DEFAULT 0,
   due_amount    REAL GENERATED ALWAYS AS (total_amount - paid_amount) VIRTUAL,
@@ -452,7 +452,7 @@ export const cloudAdapter = {
 |----------------|-----------------|------------------------------------------------------------------|
 | Date Range     | Date picker pair | From / To; defaults to current month                           |
 | Customer       | Search input    | Same debounced SQLite search as Entry screen                     |
-| Entry Type     | Segmented control | All · Baki · Payment                                           |
+| Entry Type     | Segmented control | All · Sale · Collection                                           |
 | Sort           | Dropdown        | Newest first (default) · Oldest first · Highest due · Lowest due |
 
 **Results Table columns:** Date · Customer Name · Bill · Paid · Due · Type badge

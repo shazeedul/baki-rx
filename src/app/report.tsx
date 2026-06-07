@@ -1,23 +1,27 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useRouter } from 'expo-router';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  View,
+  ActivityIndicator,
+  FlatList,
+  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  FlatList,
-  StyleSheet,
-  ActivityIndicator,
-  Platform,
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import { colors, spacing, radius } from '../constants/theme';
+import { colors, radius, spacing } from '../constants/theme';
 import { useAuth } from '../context/auth-context';
 import { ledgerQueries, ReportRow } from '../db/queries/ledger';
+import LoginScreen from './(auth)/login';
 
 export default function ReportScreen() {
   const router = useRouter();
-  const { storeId } = useAuth();
+  const { isLoggedIn, storeId } = useAuth();
+
+  if (!isLoggedIn) {
+    return <LoginScreen />;
+  }
 
   // 1. Filter states
   const [fromDate, setFromDate] = useState(() => {
@@ -25,7 +29,7 @@ export default function ReportScreen() {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
   });
-  
+
   const [toDate, setToDate] = useState(() => {
     // Default: current date (YYYY-MM-DD)
     const d = new Date();
@@ -34,7 +38,7 @@ export default function ReportScreen() {
 
   const [customerSearch, setCustomerSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [entryType, setEntryType] = useState<'all' | 'baki' | 'payment'>('all');
+  const [entryType, setEntryType] = useState<'all' | 'sale' | 'collection'>('all');
   const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'highest_due' | 'lowest_due'>('newest');
 
   // Pagination states
@@ -114,12 +118,12 @@ export default function ReportScreen() {
   const summary = useMemo(() => {
     let totalBaki = 0;
     let totalCollected = 0;
-    
+
     data.forEach((r) => {
-      if (r.entry_type === 'baki') {
+      if (r.entry_type === 'sale') {
         totalBaki += r.total_amount;
         totalCollected += r.paid_amount;
-      } else if (r.entry_type === 'payment') {
+      } else if (r.entry_type === 'collection') {
         totalCollected += r.paid_amount;
       }
     });
@@ -134,7 +138,7 @@ export default function ReportScreen() {
   return (
     <View style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
-        
+
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.push('/')} style={styles.backBtn}>
@@ -187,7 +191,7 @@ export default function ReportScreen() {
             <View style={styles.flexHalf}>
               <Text style={styles.filterLabel}>Entry Type</Text>
               <View style={styles.segmentedContainer}>
-                {(['all', 'baki', 'payment'] as const).map((t) => (
+                {(['all', 'sale', 'collection'] as const).map((t) => (
                   <TouchableOpacity
                     key={t}
                     style={[styles.segmentBtn, entryType === t && styles.segmentBtnActive]}
@@ -200,7 +204,7 @@ export default function ReportScreen() {
                 ))}
               </View>
             </View>
-            
+
             <View style={[styles.flexHalf, { marginLeft: spacing.md }]}>
               <Text style={styles.filterLabel}>Sort By</Text>
               <View style={styles.sortContainer}>
@@ -247,7 +251,7 @@ export default function ReportScreen() {
           data={data}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => {
-            const isBaki = item.entry_type === 'baki';
+            const isBaki = item.entry_type === 'sale';
             const dateStr = new Date(item.created_at).toLocaleDateString('en-US', {
               month: 'short',
               day: 'numeric',

@@ -1,11 +1,15 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { Alert, Platform } from 'react-native';
 import NetInfo from '@react-native-community/netinfo';
-import { supabase } from '../sync/supabase-client';
-import { saveLocalSession, getLocalSession, clearLocalSession } from '../storage/auth-storage';
+import React, { createContext, useContext, useEffect, useState } from 'react';
+import { Alert, Platform } from 'react-native';
+import { storeQueries, StoreRow } from '../db/queries/stores';
+import { tenantQueries } from '../db/queries/tenants';
 import { terminalQueries, TerminalRow } from '../db/queries/terminals';
-import { syncEngineInstance } from '../sync/SyncEngine';
 import { initDatabase } from '../db/schema';
+import { clearLocalSession, getLocalSession, saveLocalSession } from '../storage/auth-storage';
+import { supabase } from '../sync/supabase-client';
+import { syncEngineInstance } from '../sync/SyncEngine';
+
+import { cloudAdapter } from '../services/cloudAdapter';
 
 const LOCAL_CRYPT_SALT = process.env.EXPO_PUBLIC_LOCAL_CRYPT_SALT || 'baki-rx-secure-salt-value-12938102';
 
@@ -18,7 +22,10 @@ type AuthContextType = {
   isOfflineMode: boolean;
   isLoading: boolean;
   terminals: TerminalRow[];
-  refreshTerminals: () => Promise<void>;
+  stores: StoreRow[];
+  refreshTerminals: () => Promise<TerminalRow[]>;
+  syncTerminals: () => Promise<number>;
+  syncTenantByName: (tenantName: string) => Promise<boolean>;
   login: (storeId: string, mobile: string, pin: string) => Promise<boolean>;
   logout: () => Promise<void>;
 };
@@ -103,6 +110,18 @@ async function isNetworkConnected(): Promise<boolean> {
   return !!state.isConnected;
 }
 
+async function getActiveTenantId(): Promise<string> {
+  try {
+    const list = await tenantQueries.getAllTenants();
+    if (list && list.length > 0) {
+      return list[0].id;
+    }
+  } catch (e) {
+    console.warn('Failed to read local tenants:', e);
+  }
+  return process.env.EXPO_PUBLIC_TENANT_ID || '00000000-0000-0000-0000-000000000000';
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [selectedBranch, setSelectedBranch] = useState('Choose your terminal');
@@ -112,28 +131,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isOfflineMode, setIsOfflineMode] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [terminals, setTerminals] = useState<TerminalRow[]>([]);
+  const [stores, setStores] = useState<StoreRow[]>([]);
 
-  const refreshTerminals = async () => {
+  const refreshTerminals = async (): Promise<TerminalRow[]> => {
     try {
       await initDatabase();
       const list = await terminalQueries.getAllTerminals();
       setTerminals(list);
-      
-      // Auto seed mock terminals if none exist (for development/web ease)
-      const isMockSupabase = !process.env.EXPO_PUBLIC_SUPABASE_URL || process.env.EXPO_PUBLIC_SUPABASE_URL.includes('mock');
-      if (list.length === 0 && isMockSupabase) {
-        const mockTerminals: TerminalRow[] = [
-          { id: 't1', store_id: 'dhanmondi-store-id', tenant_id: 'baki-tenant-id', store_name: 'Baki Rx Dhanmondi', branch_name: 'Dhanmondi Terminal', pin_hash: simpleSHA256('1234' + LOCAL_CRYPT_SALT), jwt_cache: null, created_at: new Date().toISOString() },
-          { id: 't2', store_id: 'gulshan-store-id', tenant_id: 'baki-tenant-id', store_name: 'Baki Rx Gulshan', branch_name: 'Gulshan Terminal', pin_hash: simpleSHA256('1234' + LOCAL_CRYPT_SALT), jwt_cache: null, created_at: new Date().toISOString() },
-          { id: 't3', store_id: 'uttara-store-id', tenant_id: 'baki-tenant-id', store_name: 'Baki Rx Uttara', branch_name: 'Uttara Terminal', pin_hash: simpleSHA256('1234' + LOCAL_CRYPT_SALT), jwt_cache: null, created_at: new Date().toISOString() },
-          { id: 't4', store_id: 'mirpur-store-id', tenant_id: 'baki-tenant-id', store_name: 'Baki Rx Mirpur', branch_name: 'Mirpur Terminal', pin_hash: simpleSHA256('1234' + LOCAL_CRYPT_SALT), jwt_cache: null, created_at: new Date().toISOString() }
-        ];
-        await terminalQueries.upsertTerminals(mockTerminals);
-        const updated = await terminalQueries.getAllTerminals();
-        setTerminals(updated);
-      }
+
+      const activeTenantId = await getActiveTenantId();
+      const storeList = await storeQueries.getStoresByTenant(activeTenantId);
+      setStores(storeList);
+
+      return list;
     } catch (err) {
       console.warn('Failed to load terminals from database:', err);
+      return [];
     }
   };
 
@@ -142,7 +155,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     (async () => {
       try {
         await initDatabase();
-        await refreshTerminals();
+        let list = await refreshTerminals();
+
+        const activeTenantId = await getActiveTenantId();
+        const localTenants = await tenantQueries.getAllTenants();
+        const localStores = await storeQueries.getStoresByTenant(activeTenantId);
+
+        // Auto-sync tenants, stores, and terminals on launch if local DB has no stores & tenants data, and device is online
+        if (localTenants.length === 0 && localStores.length === 0) {
+          const connected = await isNetworkConnected();
+          if (connected) {
+            try {
+              await syncEngineInstance.syncTenants();
+              await syncEngineInstance.syncStores(activeTenantId);
+              await syncEngineInstance.syncTerminals(activeTenantId);
+              list = await refreshTerminals();
+            } catch (syncErr) {
+              console.warn('Auto initial configuration sync from cloud failed:', syncErr);
+            }
+          }
+        }
+
         const session = await getLocalSession();
         if (session) {
           setSelectedBranch(session.branch);
@@ -177,10 +210,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     const inputPinHash = simpleSHA256(pin + LOCAL_CRYPT_SALT);
-    
+
     // 1. Query local terminals table
     let terminal = await terminalQueries.getTerminalByPhoneAndStore(mobile, loginStoreId);
-    
+
     if (terminal) {
       // Verify PIN
       if (inputPinHash === terminal.pin_hash) {
@@ -218,7 +251,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // 3. ONLINE - call SyncEngine.syncTerminals(tenantId)
     try {
-      const activeTenantId = process.env.EXPO_PUBLIC_TENANT_ID || 'baki-tenant-id';
+      const activeTenantId = await getActiveTenantId();
       await syncEngineInstance.syncTerminals(activeTenantId);
       await refreshTerminals();
 
@@ -277,6 +310,54 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsOfflineMode(false);
   };
 
+  const syncTerminals = async (): Promise<number> => {
+    try {
+      const activeTenantId = await getActiveTenantId();
+      await syncEngineInstance.syncTenants();
+      await syncEngineInstance.syncStores(activeTenantId);
+      await syncEngineInstance.syncTerminals(activeTenantId);
+      const list = await refreshTerminals();
+      return list.length;
+    } catch (err) {
+      console.error('Failed to sync remote terminals:', err);
+      throw err;
+    }
+  };
+
+  const syncTenantByName = async (tenantName: string): Promise<boolean> => {
+    try {
+      const tenant = await cloudAdapter.getTenantByName(tenantName);
+      if (!tenant) {
+        return false;
+      }
+
+      // Clear any old tenant configuration dynamically if switching
+      const db = require('../db/schema').getDatabase();
+      await db.runAsync('DELETE FROM tenants;');
+      await db.runAsync('DELETE FROM stores;');
+      await db.runAsync('DELETE FROM terminals;');
+
+      // Upsert the tenant locally
+      await tenantQueries.upsertTenants([{
+        id: tenant.id,
+        business_name: tenant.business_name,
+        created_at: tenant.created_at || new Date().toISOString()
+      }]);
+
+      // Sync stores and terminals for this tenant id
+      await syncEngineInstance.syncStores(tenant.id);
+      console.log(`All stores after upsert:`, await storeQueries.getStoresByTenant(tenant.id));
+      await syncEngineInstance.syncTerminals(tenant.id);
+
+      // Refresh terminals so dropdown has them
+      await refreshTerminals();
+      return true;
+    } catch (err) {
+      console.error('Failed to sync tenant by name:', err);
+      throw err;
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -288,7 +369,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isOfflineMode,
         isLoading,
         terminals,
+        stores,
         refreshTerminals,
+        syncTerminals,
+        syncTenantByName,
         login,
         logout,
       }}
