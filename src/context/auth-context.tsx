@@ -3,6 +3,9 @@ import { Alert, Platform } from 'react-native';
 import NetInfo from '@react-native-community/netinfo';
 import { supabase } from '../sync/supabase-client';
 import { saveLocalSession, getLocalSession, clearLocalSession } from '../storage/auth-storage';
+import { terminalQueries, TerminalRow } from '../db/queries/terminals';
+import { syncEngineInstance } from '../sync/SyncEngine';
+import { initDatabase } from '../db/schema';
 
 const LOCAL_CRYPT_SALT = process.env.EXPO_PUBLIC_LOCAL_CRYPT_SALT || 'baki-rx-secure-salt-value-12938102';
 
@@ -14,7 +17,9 @@ type AuthContextType = {
   tenantId: string;
   isOfflineMode: boolean;
   isLoading: boolean;
-  login: (branch: string, mobile: string, pin: string) => Promise<boolean>;
+  terminals: TerminalRow[];
+  refreshTerminals: () => Promise<void>;
+  login: (storeId: string, mobile: string, pin: string) => Promise<boolean>;
   logout: () => Promise<void>;
 };
 
@@ -92,7 +97,7 @@ function simpleSHA256(str: string): string {
 
 async function isNetworkConnected(): Promise<boolean> {
   if (Platform.OS === 'web') {
-    return navigator.onLine;
+    return typeof navigator !== 'undefined' && navigator.onLine;
   }
   const state = await NetInfo.fetch();
   return !!state.isConnected;
@@ -106,11 +111,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [tenantId, setTenantId] = useState('');
   const [isOfflineMode, setIsOfflineMode] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [terminals, setTerminals] = useState<TerminalRow[]>([]);
 
-  // Restore session on startup
+  const refreshTerminals = async () => {
+    try {
+      await initDatabase();
+      const list = await terminalQueries.getAllTerminals();
+      setTerminals(list);
+      
+      // Auto seed mock terminals if none exist (for development/web ease)
+      const isMockSupabase = !process.env.EXPO_PUBLIC_SUPABASE_URL || process.env.EXPO_PUBLIC_SUPABASE_URL.includes('mock');
+      if (list.length === 0 && isMockSupabase) {
+        const mockTerminals: TerminalRow[] = [
+          { id: 't1', store_id: 'dhanmondi-store-id', tenant_id: 'baki-tenant-id', store_name: 'Baki Rx Dhanmondi', branch_name: 'Dhanmondi Terminal', pin_hash: simpleSHA256('1234' + LOCAL_CRYPT_SALT), jwt_cache: null, created_at: new Date().toISOString() },
+          { id: 't2', store_id: 'gulshan-store-id', tenant_id: 'baki-tenant-id', store_name: 'Baki Rx Gulshan', branch_name: 'Gulshan Terminal', pin_hash: simpleSHA256('1234' + LOCAL_CRYPT_SALT), jwt_cache: null, created_at: new Date().toISOString() },
+          { id: 't3', store_id: 'uttara-store-id', tenant_id: 'baki-tenant-id', store_name: 'Baki Rx Uttara', branch_name: 'Uttara Terminal', pin_hash: simpleSHA256('1234' + LOCAL_CRYPT_SALT), jwt_cache: null, created_at: new Date().toISOString() },
+          { id: 't4', store_id: 'mirpur-store-id', tenant_id: 'baki-tenant-id', store_name: 'Baki Rx Mirpur', branch_name: 'Mirpur Terminal', pin_hash: simpleSHA256('1234' + LOCAL_CRYPT_SALT), jwt_cache: null, created_at: new Date().toISOString() }
+        ];
+        await terminalQueries.upsertTerminals(mockTerminals);
+        const updated = await terminalQueries.getAllTerminals();
+        setTerminals(updated);
+      }
+    } catch (err) {
+      console.warn('Failed to load terminals from database:', err);
+    }
+  };
+
+  // Restore session and load terminals on startup
   useEffect(() => {
     (async () => {
       try {
+        await initDatabase();
+        await refreshTerminals();
         const session = await getLocalSession();
         if (session) {
           setSelectedBranch(session.branch);
@@ -139,128 +171,95 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  const login = async (branch: string, mobile: string, pin: string): Promise<boolean> => {
-    if (!branch || branch === 'Choose your terminal' || mobile.length < 8 || pin.length !== 4) {
+  const login = async (loginStoreId: string, mobile: string, pin: string): Promise<boolean> => {
+    if (!loginStoreId || mobile.length < 8 || pin.length !== 4) {
       return false;
     }
 
-    const connected = await isNetworkConnected();
-    const isMockSupabase = !process.env.EXPO_PUBLIC_SUPABASE_URL || process.env.EXPO_PUBLIC_SUPABASE_URL.includes('mock');
-
-    let resolvedStoreId = '';
-    let resolvedTenantId = '';
-    let loginOffline = false;
-
-    if (connected && !isMockSupabase) {
-      try {
-        // Map mobile number to email format for Supabase Auth
-        const email = `${mobile.replace(/[^0-9]/g, '')}@bakirx.com`;
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email,
-          password: pin,
+    const inputPinHash = simpleSHA256(pin + LOCAL_CRYPT_SALT);
+    
+    // 1. Query local terminals table
+    let terminal = await terminalQueries.getTerminalByPhoneAndStore(mobile, loginStoreId);
+    
+    if (terminal) {
+      // Verify PIN
+      if (inputPinHash === terminal.pin_hash) {
+        const branchDisplay = `${terminal.branch_name} (${terminal.store_name})`;
+        await saveLocalSession({
+          branch: branchDisplay,
+          mobile,
+          storeId: terminal.store_id,
+          tenantId: terminal.tenant_id,
+          pinHash: inputPinHash,
         });
+        setSelectedBranch(branchDisplay);
+        setMobileNumber(mobile);
+        setStoreId(terminal.store_id);
+        setTenantId(terminal.tenant_id);
+        setIsLoggedIn(true);
+        const connected = await isNetworkConnected();
+        setIsOfflineMode(!connected);
+        return true;
+      } else {
+        Alert.alert('Incorrect PIN', 'Please try again.');
+        return false;
+      }
+    }
 
-        if (error) {
-          // If network failed, fall back. Otherwise fail the authentication
-          if (error.message && (error.message.includes('fetch') || error.message.includes('network'))) {
-            loginOffline = true;
-          } else {
-            Alert.alert('Authentication Failed', error.message);
-            return false;
-          }
-        } else if (data && data.user) {
-          resolvedStoreId = data.user.user_metadata?.store_id || 'dhanmondi-store-id';
-          resolvedTenantId = data.user.user_metadata?.tenant_id || 'baki-tenant-id';
+    // 2. Terminal ROW NOT FOUND - check connectivity
+    const connected = await isNetworkConnected();
+    if (!connected) {
+      Alert.alert(
+        'Offline Mode Error',
+        'Terminal not found on this device.\nConnect to internet to sync your terminal data. Please try again to login.'
+      );
+      return false;
+    }
 
-          // Cache credentials locally for offline access
-          const hashed = simpleSHA256(pin + LOCAL_CRYPT_SALT);
+    // 3. ONLINE - call SyncEngine.syncTerminals(tenantId)
+    try {
+      const activeTenantId = process.env.EXPO_PUBLIC_TENANT_ID || 'baki-tenant-id';
+      await syncEngineInstance.syncTerminals(activeTenantId);
+      await refreshTerminals();
+
+      // Retry local lookup
+      terminal = await terminalQueries.getTerminalByPhoneAndStore(mobile, loginStoreId);
+      if (terminal) {
+        // Verify PIN
+        if (inputPinHash === terminal.pin_hash) {
+          const branchDisplay = `${terminal.branch_name} (${terminal.store_name})`;
           await saveLocalSession({
-            branch,
+            branch: branchDisplay,
             mobile,
-            storeId: resolvedStoreId,
-            tenantId: resolvedTenantId,
-            pinHash: hashed,
+            storeId: terminal.store_id,
+            tenantId: terminal.tenant_id,
+            pinHash: inputPinHash,
           });
-
-          setSelectedBranch(branch);
+          setSelectedBranch(branchDisplay);
           setMobileNumber(mobile);
-          setStoreId(resolvedStoreId);
-          setTenantId(resolvedTenantId);
+          setStoreId(terminal.store_id);
+          setTenantId(terminal.tenant_id);
           setIsLoggedIn(true);
           setIsOfflineMode(false);
           return true;
+        } else {
+          Alert.alert('Incorrect PIN', 'Please try again.');
+          return false;
         }
-      } catch (err) {
-        console.warn('Online login error, trying offline fallback', err);
-        loginOffline = true;
-      }
-    } else {
-      loginOffline = true;
-    }
-
-    if (loginOffline || isMockSupabase) {
-      const cachedSession = await getLocalSession();
-
-      if (isMockSupabase) {
-        // Simulator Mock Data Setup
-        resolvedStoreId = branch.toLowerCase().includes('dhanmondi')
-          ? 'dhanmondi-store-id'
-          : branch.toLowerCase().includes('gulshan')
-          ? 'gulshan-store-id'
-          : branch.toLowerCase().includes('uttara')
-          ? 'uttara-store-id'
-          : 'mirpur-store-id';
-        resolvedTenantId = 'baki-tenant-id';
-
-        const hashed = simpleSHA256(pin + LOCAL_CRYPT_SALT);
-        const mockSession = {
-          branch,
-          mobile,
-          storeId: resolvedStoreId,
-          tenantId: resolvedTenantId,
-          pinHash: hashed,
-        };
-        await saveLocalSession(mockSession);
-
-        setSelectedBranch(branch);
-        setMobileNumber(mobile);
-        setStoreId(resolvedStoreId);
-        setTenantId(resolvedTenantId);
-        setIsLoggedIn(true);
-        setIsOfflineMode(!connected);
-        return true;
-      }
-
-      if (!cachedSession) {
+      } else {
         Alert.alert(
-          'Offline Mode Error',
-          'Terminal activation requires an initial online login. Please connect to the internet and retry.'
+          'Authentication Error',
+          'Terminal not registered. Contact your administrator.'
         );
         return false;
       }
-
-      if (cachedSession.mobile !== mobile) {
-        Alert.alert('Authentication Failed', 'Mobile number does not match activated offline terminal.');
-        return false;
-      }
-
-      const inputHash = simpleSHA256(pin + LOCAL_CRYPT_SALT);
-      if (inputHash !== cachedSession.pinHash) {
-        Alert.alert('Authentication Failed', 'Invalid security PIN.');
-        return false;
-      }
-
-      // Successful Offline login
-      setSelectedBranch(cachedSession.branch);
-      setMobileNumber(cachedSession.mobile);
-      setStoreId(cachedSession.storeId);
-      setTenantId(cachedSession.tenantId);
-      setIsLoggedIn(true);
-      setIsOfflineMode(true);
-      return true;
+    } catch (err) {
+      Alert.alert(
+        'Connection Error',
+        'Could not reach server. Please try again.'
+      );
+      return false;
     }
-
-    return false;
   };
 
   const logout = async () => {
@@ -288,6 +287,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         tenantId,
         isOfflineMode,
         isLoading,
+        terminals,
+        refreshTerminals,
         login,
         logout,
       }}
@@ -304,3 +305,4 @@ export function useAuth() {
   }
   return context;
 }
+
