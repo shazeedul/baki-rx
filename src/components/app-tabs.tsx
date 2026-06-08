@@ -1,8 +1,8 @@
-import { Tabs } from 'expo-router';
-import { useColorScheme } from 'react-native';
 import { Colors, colors as themeColors } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
-import { Home, PlusCircle, ClipboardList } from 'lucide-react-native';
+import { Tabs } from 'expo-router';
+import { ClipboardList, Home, PlusCircle } from 'lucide-react-native';
+import { useColorScheme } from 'react-native';
 
 export default function AppTabs() {
   const scheme = useColorScheme();
@@ -53,6 +53,12 @@ export default function AppTabs() {
         options={{
           title: 'Reports',
           tabBarIcon: ({ color, size }) => <ClipboardList color={color} size={size} />,
+        }}
+      />
+      <Tabs.Screen
+        name="(auth)/login"
+        options={{
+          href: null,
         }}
       />
     </Tabs>
