@@ -53,7 +53,7 @@ export default function LoginScreen() {
   // Redirect if logged in
   useEffect(() => {
     if (isLoggedIn) {
-      router.replace('/');
+      router.replace('/(tabs)/home');
     }
   }, [isLoggedIn]);
 
@@ -97,7 +97,7 @@ export default function LoginScreen() {
     try {
       const success = await login(selectedStoreId, mobile, fullPin);
       if (success) {
-        router.replace('/');
+        router.replace('/(tabs)/home');
       }
     } catch (err) {
       console.error('Login error:', err);

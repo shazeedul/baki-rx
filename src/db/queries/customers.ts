@@ -13,14 +13,14 @@ export interface CustomerRow {
 export const customerQueries = {
   async getCustomers(storeId: string, search = '', limit = 20, offset = 0): Promise<CustomerRow[]> {
     const db = getDatabase();
-    const searchPattern = `%${search}%`;
+    const searchPattern = `%${search || ''}%`;
     return db.getAllAsync<CustomerRow>(
       `SELECT id, store_id, name, phone, is_dirty, created_at, updated_at 
        FROM customers 
        WHERE store_id = ? AND (name LIKE ? OR phone LIKE ?) 
        ORDER BY name 
        LIMIT ? OFFSET ?;`,
-      [storeId, searchPattern, searchPattern, limit, offset]
+      [storeId ?? '', searchPattern, searchPattern, limit ?? 20, offset ?? 0]
     );
   },
 
@@ -30,7 +30,7 @@ export const customerQueries = {
       `SELECT id, store_id, name, phone, is_dirty, created_at, updated_at 
        FROM customers 
        WHERE store_id = ? AND id = ?;`,
-      [storeId, id]
+      [storeId ?? '', id ?? '']
     );
   },
 
@@ -44,7 +44,7 @@ export const customerQueries = {
     await db.runAsync(
       `INSERT INTO customers (id, store_id, name, phone, is_dirty, created_at, updated_at) 
        VALUES (?, ?, ?, ?, ?, ?, ?);`,
-      [cust.id, cust.store_id, cust.name, cust.phone, isDirty, createdAt, updatedAt]
+      [cust.id ?? '', cust.store_id ?? '', cust.name ?? '', cust.phone ?? '', isDirty, createdAt, updatedAt]
     );
   },
 
@@ -53,7 +53,7 @@ export const customerQueries = {
     const nowStr = new Date().toISOString();
     await db.runAsync(
       `UPDATE customers SET name = ?, phone = ?, is_dirty = ?, updated_at = ? WHERE id = ?;`,
-      [name, phone, isDirty, nowStr, id]
+      [name ?? '', phone ?? '', isDirty ?? 1, nowStr, id ?? '']
     );
   },
 
@@ -62,7 +62,7 @@ export const customerQueries = {
     await db.runAsync(
       `INSERT OR REPLACE INTO customers (id, store_id, name, phone, is_dirty, created_at, updated_at) 
        VALUES (?, ?, ?, ?, ?, ?, ?);`,
-      [cust.id, cust.store_id, cust.name, cust.phone, cust.is_dirty, cust.created_at, cust.updated_at]
+      [cust.id ?? '', cust.store_id ?? '', cust.name ?? '', cust.phone ?? '', cust.is_dirty ?? 1, cust.created_at ?? '', cust.updated_at ?? '']
     );
   },
 

@@ -1,25 +1,11 @@
-import { Colors, colors as themeColors } from '@/constants/theme';
-import { useAuth } from '@/context/auth-context';
 import { Tabs } from 'expo-router';
-import { ClipboardList, Home, PlusCircle } from 'lucide-react-native';
 import { useColorScheme } from 'react-native';
+import { Colors, colors as themeColors } from '../../constants/theme';
+import { Home, PlusCircle, ClipboardList } from 'lucide-react-native';
 
-export default function AppTabs() {
+export default function TabLayout() {
   const scheme = useColorScheme();
   const colors = Colors[scheme === 'unspecified' ? 'light' : scheme];
-  const { isLoggedIn } = useAuth();
-
-  // Hide the tab bar navigation if the user is not logged in
-  if (!isLoggedIn) {
-    return (
-      <Tabs
-        screenOptions={{
-          tabBarStyle: { display: 'none' },
-          headerShown: false,
-        }}
-      />
-    );
-  }
 
   return (
     <Tabs
@@ -35,7 +21,7 @@ export default function AppTabs() {
       }}
     >
       <Tabs.Screen
-        name="index"
+        name="home"
         options={{
           title: 'Home',
           tabBarIcon: ({ color, size }) => <Home color={color} size={size} />,
@@ -53,12 +39,6 @@ export default function AppTabs() {
         options={{
           title: 'Reports',
           tabBarIcon: ({ color, size }) => <ClipboardList color={color} size={size} />,
-        }}
-      />
-      <Tabs.Screen
-        name="(auth)/login"
-        options={{
-          href: null,
         }}
       />
     </Tabs>

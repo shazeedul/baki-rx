@@ -11,22 +11,21 @@ import {
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, Redirect } from 'expo-router';
 import * as Crypto from 'expo-crypto';
-import { colors, spacing, radius } from '../constants/theme';
-import { useAuth } from '../context/auth-context';
-import { CustomerSearchDropdown } from '../components/CustomerSearchDropdown';
-import { AddCustomerDrawer } from '../components/AddCustomerDrawer';
-import { ledgerQueries } from '../db/queries/ledger';
-import { CustomerRow } from '../db/queries/customers';
-import LoginScreen from './(auth)/login';
+import { colors, spacing, radius } from '../../constants/theme';
+import { useAuth } from '../../context/auth-context';
+import { CustomerSearchDropdown } from '../../components/CustomerSearchDropdown';
+import { AddCustomerDrawer } from '../../components/AddCustomerDrawer';
+import { ledgerQueries } from '../../db/queries/ledger';
+import { CustomerRow } from '../../db/queries/customers';
 
 export default function NewSaleEntryScreen() {
   const router = useRouter();
   const { isLoggedIn, storeId } = useAuth();
 
   if (!isLoggedIn) {
-    return <LoginScreen />;
+    return <Redirect href="/(auth)/login" />;
   }
   
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerRow | null>(null);
@@ -69,7 +68,7 @@ export default function NewSaleEntryScreen() {
       });
 
       Alert.alert('Saved', 'Baki entry recorded successfully! (Offline Safe)');
-      router.push('/');
+      router.push('/(tabs)/home');
     } catch (err) {
       console.error('Failed to create ledger entry:', err);
       Alert.alert('Database Error', 'Failed to save transaction to local database.');
@@ -87,7 +86,7 @@ export default function NewSaleEntryScreen() {
         >
           {/* Header */}
           <View style={styles.header}>
-            <TouchableOpacity onPress={() => router.push('/')} style={styles.backBtn}>
+            <TouchableOpacity onPress={() => router.push('/(tabs)/home')} style={styles.backBtn}>
               <Text style={styles.backText}>← Back</Text>
             </TouchableOpacity>
             <Text style={styles.headerTitle}>New Baki Entry</Text>

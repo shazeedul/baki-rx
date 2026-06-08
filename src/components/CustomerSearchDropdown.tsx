@@ -3,7 +3,7 @@ import {
   View,
   Text,
   TextInput,
-  FlatList,
+  ScrollView,
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
@@ -109,48 +109,45 @@ export const CustomerSearchDropdown: React.FC<CustomerSearchDropdownProps> = ({
 
       {dropdownOpen.current && (search.length > 0 || results.length > 0) && (
         <View style={styles.dropdownList}>
-          <FlatList
-            data={results}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                style={styles.rowItem}
-                onPress={() => handleSelectCustomer(item)}
-              >
-                <View>
-                  <Text style={styles.rowName}>{item.name}</Text>
-                  <Text style={styles.rowPhone}>{item.phone}</Text>
-                </View>
+          {results.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyText}>No customer found</Text>
+              <TouchableOpacity style={styles.addBtn} onPress={onAddNewCustomer}>
+                <Text style={styles.addBtnText}>+ Tap to add customer</Text>
               </TouchableOpacity>
-            )}
-            ListEmptyComponent={() => (
-              <View style={styles.emptyState}>
-                <Text style={styles.emptyText}>No customer found</Text>
-                <TouchableOpacity style={styles.addBtn} onPress={onAddNewCustomer}>
-                  <Text style={styles.addBtnText}>+ Tap to add customer</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-            ListFooterComponent={() => {
-              if (loading) {
-                return (
-                  <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="small" color={colors.primary} />
+            </View>
+          ) : (
+            <ScrollView
+              style={styles.scrollList}
+              keyboardShouldPersistTaps="handled"
+              nestedScrollEnabled={true}
+            >
+              {results.map((item) => (
+                <TouchableOpacity
+                  key={item.id}
+                  style={styles.rowItem}
+                  onPress={() => handleSelectCustomer(item)}
+                >
+                  <View>
+                    <Text style={styles.rowName}>{item.name}</Text>
+                    <Text style={styles.rowPhone}>{item.phone}</Text>
                   </View>
-                );
-              }
-              if (hasMore) {
-                return (
-                  <TouchableOpacity style={styles.loadMoreBtn} onPress={handleLoadMore}>
-                    <Text style={styles.loadMoreText}>Load more</Text>
-                  </TouchableOpacity>
-                );
-              }
-              return null;
-            }}
-            keyboardShouldPersistTaps="handled"
-            style={styles.scrollList}
-          />
+                </TouchableOpacity>
+              ))}
+
+              {loading && (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator size="small" color={colors.primary} />
+                </View>
+              )}
+
+              {!loading && hasMore && (
+                <TouchableOpacity style={styles.loadMoreBtn} onPress={handleLoadMore}>
+                  <Text style={styles.loadMoreText}>Load more</Text>
+                </TouchableOpacity>
+              )}
+            </ScrollView>
+          )}
         </View>
       )}
     </View>

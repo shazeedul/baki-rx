@@ -451,7 +451,6 @@ export async function initDatabase() {
         entry_type    TEXT NOT NULL CHECK(entry_type IN ('sale','collection')),
         total_amount  REAL NOT NULL,
         paid_amount   REAL NOT NULL DEFAULT 0,
-        due_amount    REAL GENERATED ALWAYS AS (total_amount - paid_amount) VIRTUAL,
         note          TEXT,
         is_dirty      INTEGER DEFAULT 1,
         created_at    TEXT DEFAULT (datetime('now'))

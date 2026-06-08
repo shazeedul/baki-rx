@@ -36,11 +36,14 @@ This file is the single source of truth for architecture decisions, conventions,
 /
 ├── src/
 |   ├── app/                    # Expo Router screens (if using file-based routing)
+|   |   ├── (tabs)/
+    |   │   ├── index.tsx           # Home / Dashboard
+    |   │   ├── entry.tsx           # New Sale Entry
+    |   │   ├── report.tsx          # Reports
 |   │   ├── (auth)/
 |   │   │   └── login.tsx
-|   │   ├── index.tsx           # Home / Dashboard
-|   │   ├── entry.tsx           # New Sale Entry
-|   │   ├── report.tsx          # Reports
+|   |   ├── index.tsx 
+|   |   ├── +not-found.tsx
 |   │   └── _layout.tsx
 │   ├── components/
 │   │   ├── AddCustomerDrawer.tsx

@@ -8,30 +8,21 @@ import {
 } from 'expo-router/ui';
 import { SymbolView } from 'expo-symbols';
 import { Pressable, useColorScheme, View, StyleSheet } from 'react-native';
-import { Slot } from 'expo-router';
 import { Home, PlusCircle, ClipboardList } from 'lucide-react-native';
 
-import { ExternalLink } from './external-link';
-import { ThemedText } from './themed-text';
-import { ThemedView } from './themed-view';
+import { ExternalLink } from '../../components/external-link';
+import { ThemedText } from '../../components/themed-text';
+import { ThemedView } from '../../components/themed-view';
 
-import { Colors, MaxContentWidth, Spacing, colors as themeColors } from '@/constants/theme';
-import { useAuth } from '@/context/auth-context';
+import { Colors, MaxContentWidth, Spacing, colors as themeColors } from '../../constants/theme';
 
 export default function AppTabs() {
-  const { isLoggedIn } = useAuth();
-
-  // Hide the tab bar navigation if the user is not logged in
-  if (!isLoggedIn) {
-    return <Slot />;
-  }
-
   return (
     <Tabs>
       <TabSlot style={{ height: '100%' }} />
       <TabList asChild>
         <CustomTabList>
-          <TabTrigger name="index" href="/" asChild>
+          <TabTrigger name="home" href="/home" asChild>
             <TabButton icon={Home}>Home</TabButton>
           </TabTrigger>
           <TabTrigger name="entry" href={"/entry" as any} asChild>

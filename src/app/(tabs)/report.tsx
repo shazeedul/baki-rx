@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { useRouter, Redirect } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -10,17 +10,16 @@ import {
   View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors, radius, spacing } from '../constants/theme';
-import { useAuth } from '../context/auth-context';
-import { ledgerQueries, ReportRow } from '../db/queries/ledger';
-import LoginScreen from './(auth)/login';
+import { colors, radius, spacing } from '../../constants/theme';
+import { useAuth } from '../../context/auth-context';
+import { ledgerQueries, ReportRow } from '../../db/queries/ledger';
 
 export default function ReportScreen() {
   const router = useRouter();
   const { isLoggedIn, storeId } = useAuth();
 
   if (!isLoggedIn) {
-    return <LoginScreen />;
+    return <Redirect href="/(auth)/login" />;
   }
 
   // 1. Filter states
@@ -141,7 +140,7 @@ export default function ReportScreen() {
 
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.push('/')} style={styles.backBtn}>
+          <TouchableOpacity onPress={() => router.push('/(tabs)/home')} style={styles.backBtn}>
             <Text style={styles.backText}>← Back</Text>
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Transaction Report</Text>
