@@ -167,59 +167,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         Alert.alert('Incorrect PIN', 'Please try again.');
         return false;
       }
-    }
-
-    // 2. Terminal ROW NOT FOUND - check connectivity
-    const connected = await isNetworkConnected();
-    if (!connected) {
+    } else {
       Alert.alert(
-        'Offline Mode Error',
-        'Terminal not found on this device.\nConnect to internet to sync your terminal data. Please try again to login.'
-      );
-      return false;
-    }
-
-    // 3. ONLINE - call SyncEngine.syncTerminals(tenantId)
-    try {
-      const activeTenantId = await getActiveTenantId();
-      await syncEngineInstance.syncTerminals(activeTenantId);
-      await refreshTerminals();
-
-      // Retry local lookup
-      terminal = await terminalQueries.getTerminalByPhoneAndStore(mobile, loginStoreId);
-      if (terminal) {
-        // Verify PIN
-        if (verifyPin(pin, terminal.pin_hash)) {
-          const branchDisplay = `${terminal.branch_name} (${terminal.store_name})`;
-          await saveLocalSession({
-            branch: branchDisplay,
-            mobile,
-            storeId: terminal.store_id,
-            tenantId: terminal.tenant_id,
-            pinHash: inputPinHash,
-          });
-          setSelectedBranch(branchDisplay);
-          setMobileNumber(mobile);
-          setStoreId(terminal.store_id);
-          setTenantId(terminal.tenant_id);
-          setIsLoggedIn(true);
-          setIsOfflineMode(false);
-          return true;
-        } else {
-          Alert.alert('Incorrect PIN', 'Please try again.');
-          return false;
-        }
-      } else {
-        Alert.alert(
-          'Authentication Error',
-          'Terminal not registered. Contact your administrator.'
-        );
-        return false;
-      }
-    } catch (err) {
-      Alert.alert(
-        'Connection Error',
-        'Could not reach server. Please try again.'
+        'Authentication Error',
+        'Terminal not found on this device. Please check your credentials or sync terminal data.'
       );
       return false;
     }

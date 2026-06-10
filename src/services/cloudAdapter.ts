@@ -126,7 +126,7 @@ export const cloudAdapter = {
   async pullTerminals(tenantId: string): Promise<CloudTerminal[]> {
     if (MODE === 'custom') {
       try {
-        const response = await fetch(`${FUTURE_API_URL}/terminals?tenant_id=${encodeURIComponent(tenantId)}`);
+        const response = await fetch(`${FUTURE_API_URL}/users?tenant_id=${encodeURIComponent(tenantId)}`);
         if (!response.ok) throw new Error(`Custom API pullTerminals status ${response.status}`);
         return await response.json();
       } catch (err) {
@@ -135,7 +135,7 @@ export const cloudAdapter = {
       }
     } else {
       const { data, error } = await supabase
-        .from('terminals')
+        .from('users')
         .select('*')
         .eq('tenant_id', tenantId);
 

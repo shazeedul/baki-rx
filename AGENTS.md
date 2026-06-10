@@ -37,9 +37,9 @@ This file is the single source of truth for architecture decisions, conventions,
 ├── src/
 |   ├── app/                    # Expo Router screens (if using file-based routing)
 |   |   ├── (tabs)/
-    |   │   ├── index.tsx           # Home / Dashboard
-    |   │   ├── entry.tsx           # New Sale Entry
-    |   │   ├── report.tsx          # Reports
+|   |   │   ├── index.tsx           # Home / Dashboard
+|   |   │   ├── entry.tsx           # New Sale Entry
+|   |   │   ├── report.tsx          # Reports
 |   │   ├── (auth)/
 |   │   │   └── login.tsx
 |   |   ├── index.tsx 
@@ -103,9 +103,9 @@ User Action
 The running balance is always derived locally by summing ledger deltas for a customer.
 
  
-### Terminal Sync — Lazy Fallback on Login
+### Terminal Sync & Authentication Flow
  
-Terminals are **not** synced eagerly on every login. The sync only fires as a fallback when the local `terminals` table cannot satisfy the login attempt.
+Terminals are synced from the cloud database during the Tenant Setup & Sync step, not eagerly on every login. Login is a purely offline local-first lookup, and the app does not make network requests during login attempts.
  
 #### Login Auth Flow
  
@@ -123,24 +123,9 @@ Query local terminals table:
         │         └─ MISMATCH → show "Incorrect PIN" error. Stop.               │
         │                                                                        │
         └─ ROW NOT FOUND ──────────────────────────────────────────────────────►
-             Check NetInfo.isConnected
-                  │
-                  ├─ OFFLINE → show error:
-                  │    "Terminal not found on this device.
-                  │     Connect to internet to sync your terminal data."
-                  │   please try again to login.
-                  │
-                  └─ ONLINE  → call SyncEngine.syncTerminals(tenantId)
-                                    │
-                                    ├─ Sync succeeds → retry local lookup
-                                    │       ├─ FOUND   → verify PIN → login or error
-                                    │       └─ NOT FOUND → show error:
-                                    │            "Terminal not registered.
-                                    │             Contact your administrator."
-                                    │
-                                    └─ Sync fails (network error) → show error:
-                                         "Could not reach server.
-                                          Please try again."
+             Show error:
+             "Terminal not found on this device.
+              Please check your credentials or sync terminal data."
 ```
  
 #### `SyncEngine.syncTerminals()` Contract
@@ -256,11 +241,11 @@ CREATE POLICY stores_tenant_isolation ON stores
   USING (tenant_id = (auth.jwt() -> 'user_metadata' ->> 'tenant_id')::uuid);
  
 -- ─────────────────────────────────────────────
--- TERMINALS
+-- USERS (formerly terminals)
 -- One row per physical device/clerk per branch.
 -- Holds the PIN hash used for offline auth.
 -- ─────────────────────────────────────────────
-CREATE TABLE terminals (
+CREATE TABLE users (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id   UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   store_id    UUID NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
@@ -271,15 +256,15 @@ CREATE TABLE terminals (
   created_at  TIMESTAMPTZ DEFAULT now()
 );
  
-ALTER TABLE terminals ENABLE ROW LEVEL SECURITY;
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;
  
--- Clerks can read all terminals belonging to their tenant
+-- Clerks can read all users belonging to their tenant
 -- (needed so the login screen can pull branch options).
-CREATE POLICY terminals_tenant_read ON terminals
+CREATE POLICY users_tenant_read ON users
   FOR SELECT
   USING (tenant_id = (auth.jwt() -> 'user_metadata' ->> 'tenant_id')::uuid);
  
--- Only service-role can insert/update terminals (admin action, not clerk action).
+-- Only service-role can insert/update users (admin action, not clerk action).
 -- No INSERT / UPDATE / DELETE policy for authenticated users.
  
 -- ─────────────────────────────────────────────
@@ -330,7 +315,7 @@ Every authenticated user's JWT `user_metadata` must contain:
 }
 ```
  
-These are set at the time a terminal/clerk account is created (service-role operation). The RLS policies on `stores`, `terminals`, `customers`, and `ledger_entries` all read from these claims — if either claim is missing, all queries return zero rows.
+These are set at the time a terminal/clerk account is created (service-role operation). The RLS policies on `stores`, `users`, `customers`, and `ledger_entries` all read from these claims — if either claim is missing, all queries return zero rows.
 
 #### Table Ownership Summary
  
@@ -338,7 +323,7 @@ These are set at the time a terminal/clerk account is created (service-role oper
 |---|---|---|---|
 | `tenants` | Service role (onboarding) | No | No |
 | `stores` | Service role (onboarding) | Yes (own tenant only) | No |
-| `terminals` | Service role (admin) | Yes (own tenant only) | No |
+| `users` | Service role (admin) | Yes (own tenant only) | No |
 | `customers` | App via sync push | Yes (own store only) | Yes (own store only) |
 | `ledger_entries` | App via sync push | Yes (own store only) | Yes (own store only) |
  
