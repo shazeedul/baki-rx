@@ -100,7 +100,7 @@ describe('Relational DB SQLite Queries', () => {
     });
 
     // Total Outstanding
-    const totalBaki = await ledgerQueries.getTotalBaki(storeId);
+    const totalBaki = await ledgerQueries.getTotalDue(storeId);
     expect(totalBaki).toBe(400); // 500 - 100 = 400, other is 0
 
     // Top Defaulters

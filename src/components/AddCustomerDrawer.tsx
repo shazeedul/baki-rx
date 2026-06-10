@@ -31,22 +31,49 @@ export const AddCustomerDrawer: React.FC<AddCustomerDrawerProps> = ({
   const [phone, setPhone] = useState('');
   const [saving, setSaving] = useState(false);
 
+  // Real-time phone number validation helper
+  const getPhoneError = () => {
+    if (!phone) return '';
+    const clean = phone.replace(/\D/g, '');
+    if (clean.length === 0) return '';
+    
+    if (clean.startsWith('88')) {
+      if (!clean.startsWith('8801')) {
+        return 'Must start with country code format +8801';
+      }
+      if (clean.length > 13) {
+        return 'Too long. Must be exactly 13 digits.';
+      }
+      if (clean.length < 13) {
+        return 'Country code format requires 13 digits.';
+      }
+    } else {
+      if (!clean.startsWith('01') && !'01'.startsWith(clean)) {
+        return 'Must start with 01';
+      }
+      if (clean.length > 11) {
+        return 'Too long. Must be exactly 11 digits.';
+      }
+      if (clean.length < 11) {
+        return 'Must be exactly 11 digits.';
+      }
+    }
+    return '';
+  };
+
+  const phoneError = getPhoneError();
+  const cleanPhone = phone.replace(/\D/g, '');
+  const isValidPhone = (cleanPhone.length === 11 && cleanPhone.startsWith('01')) ||
+                       (cleanPhone.length === 13 && cleanPhone.startsWith('8801'));
+  const isFormValid = name.trim().length > 0 && isValidPhone && !phoneError;
+
   const handleSave = async () => {
     if (!name.trim()) {
       Alert.alert('Validation Error', 'Customer name is required.');
       return;
     }
 
-    // Clean phone number: remove non-digits
-    const cleanPhone = phone.replace(/\D/g, '');
-    
-    // Bangladesh mobile format validation: must be exactly 11 digits (e.g. 017xxxxxxxx)
-    // or if they input with country code +88017..., cleanPhone would be 13 digits (88017...)
-    // Let's accept exactly 11 digits, or 13 digits if it starts with 88
-    const isValidBDPhone = (cleanPhone.length === 11 && cleanPhone.startsWith('01')) ||
-                           (cleanPhone.length === 13 && cleanPhone.startsWith('8801'));
-
-    if (!isValidBDPhone) {
+    if (!isValidPhone) {
       Alert.alert(
         'Validation Error',
         'Phone number must be a valid 11-digit Bangladeshi number (e.g., 01712345678).'
@@ -128,15 +155,26 @@ export const AddCustomerDrawer: React.FC<AddCustomerDrawerProps> = ({
               keyboardType="phone-pad"
               maxLength={15}
               value={phone}
-              onChangeText={setPhone}
+              onChangeText={(text) => {
+                const hasLeadingPlus = text.startsWith('+');
+                const digits = text.replace(/\D/g, '');
+                setPhone(hasLeadingPlus ? '+' + digits : digits);
+              }}
             />
+
+            {phoneError ? (
+              <Text style={styles.errorText}>{phoneError}</Text>
+            ) : null}
 
             {/* Actions */}
             <TouchableOpacity
-              style={[styles.saveButton, saving && styles.disabledButton]}
+              style={[
+                styles.saveButton, 
+                (saving || !isFormValid) && styles.disabledButton
+              ]}
               activeOpacity={0.8}
               onPress={handleSave}
-              disabled={saving}
+              disabled={saving || !isFormValid}
             >
               <Text style={styles.saveButtonText}>
                 {saving ? 'Saving...' : 'Save Customer'}
@@ -218,6 +256,13 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     backgroundColor: colors.background,
     marginBottom: spacing.md,
+  },
+  errorText: {
+    fontSize: 12,
+    color: colors.danger,
+    marginTop: -spacing.sm,
+    marginBottom: spacing.md,
+    fontWeight: '500',
   },
   saveButton: {
     height: 48,

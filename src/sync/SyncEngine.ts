@@ -15,10 +15,12 @@ export interface SyncEngineStatus {
   lastSyncedAt: string | null;
   lastUserSyncedAt: string | null;
   running: boolean;
+  syncing: boolean;
 }
 
 export class SyncEngine {
   private running = false;
+  private syncing = false;
   private intervalId: any = null;
   private listeners = new Set<SyncCallback>();
   
@@ -86,7 +88,8 @@ export class SyncEngine {
       dirtyCount: this.dirtyCount,
       lastSyncedAt: this.lastSyncedAt,
       lastUserSyncedAt: this.lastUserSyncedAt,
-      running: this.running
+      running: this.running,
+      syncing: this.syncing
     };
   }
 
@@ -96,6 +99,10 @@ export class SyncEngine {
     if (!isConnected) {
       throw new Error('No internet connection to sync users.');
     }
+
+    if (this.syncing) return;
+    this.syncing = true;
+    this.emitStatus();
 
     try {
       const rows = await cloudAdapter.pullUsers(tenantId);
@@ -121,6 +128,9 @@ export class SyncEngine {
     } catch (err) {
       console.error('syncUsers error:', err);
       throw err;
+    } finally {
+      this.syncing = false;
+      this.emitStatus();
     }
   }
 
@@ -128,6 +138,12 @@ export class SyncEngine {
     const isConnected = await this.checkConnection();
     if (!isConnected) {
       throw new Error('No internet connection to sync tenants.');
+    }
+
+    const wasSyncing = this.syncing;
+    if (!wasSyncing) {
+      this.syncing = true;
+      this.emitStatus();
     }
 
     try {
@@ -143,6 +159,11 @@ export class SyncEngine {
     } catch (err) {
       console.error('syncTenants error:', err);
       throw err;
+    } finally {
+      if (!wasSyncing) {
+        this.syncing = false;
+        this.emitStatus();
+      }
     }
   }
 
@@ -150,6 +171,12 @@ export class SyncEngine {
     const isConnected = await this.checkConnection();
     if (!isConnected) {
       throw new Error('No internet connection to sync stores.');
+    }
+
+    const wasSyncing = this.syncing;
+    if (!wasSyncing) {
+      this.syncing = true;
+      this.emitStatus();
     }
 
     try {
@@ -167,6 +194,11 @@ export class SyncEngine {
     } catch (err) {
       console.error('syncStores error:', err);
       throw err;
+    } finally {
+      if (!wasSyncing) {
+        this.syncing = false;
+        this.emitStatus();
+      }
     }
   }
 
@@ -174,6 +206,10 @@ export class SyncEngine {
   async syncAll(storeId: string): Promise<void> {
     const isConnected = await this.checkConnection();
     if (!isConnected) return;
+
+    if (this.syncing) return;
+    this.syncing = true;
+    this.emitStatus();
 
     try {
       // 1. Push dirty data
@@ -186,6 +222,9 @@ export class SyncEngine {
       await this.calculateDirtyCount();
     } catch (err) {
       console.warn('syncAll error:', err);
+    } finally {
+      this.syncing = false;
+      this.emitStatus();
     }
   }
 
@@ -194,8 +233,19 @@ export class SyncEngine {
     if (!isConnected) return;
 
     try {
+      console.log('SyncEngine.pushPending: Starting push cycle');
+
       // 1. Fetch dirty customers and push
-      const dirtyCusts = await customerQueries.getDirtyCustomers();
+      let dirtyCusts;
+      try {
+        console.log('SyncEngine.pushPending: Calling getDirtyCustomers');
+        dirtyCusts = await customerQueries.getDirtyCustomers();
+        console.log('SyncEngine.pushPending: getDirtyCustomers returned', dirtyCusts.length, 'records');
+      } catch (err: any) {
+        console.error('SyncEngine.pushPending: getDirtyCustomers failed with:', err?.message || err);
+        throw err;
+      }
+
       if (dirtyCusts.length > 0) {
         const cloudCusts = dirtyCusts.map(c => ({
           id: c.id,
@@ -204,14 +254,37 @@ export class SyncEngine {
           phone: c.phone,
           updated_at: c.updated_at
         }));
-        await cloudAdapter.upsertCustomers(cloudCusts);
+        
+        try {
+          console.log('SyncEngine.pushPending: Pushing customers to cloud');
+          await cloudAdapter.upsertCustomers(cloudCusts);
+        } catch (err: any) {
+          console.error('SyncEngine.pushPending: Cloud customer upsert failed:', err?.message || err);
+          throw err;
+        }
+
         for (const c of dirtyCusts) {
-          await customerQueries.markSynced(c.id);
+          try {
+            console.log('SyncEngine.pushPending: Marking customer synced:', c.id);
+            await customerQueries.markSynced(c.id);
+          } catch (err: any) {
+            console.error('SyncEngine.pushPending: markSynced failed for customer', c.id, ':', err?.message || err);
+            throw err;
+          }
         }
       }
 
       // 2. Fetch dirty ledger entries and push
-      const dirtyLedger = await ledgerQueries.getDirtyLedgerEntries();
+      let dirtyLedger;
+      try {
+        console.log('SyncEngine.pushPending: Calling getDirtyLedgerEntries');
+        dirtyLedger = await ledgerQueries.getDirtyLedgerEntries();
+        console.log('SyncEngine.pushPending: getDirtyLedgerEntries returned', dirtyLedger.length, 'records');
+      } catch (err: any) {
+        console.error('SyncEngine.pushPending: getDirtyLedgerEntries failed with:', err?.message || err);
+        throw err;
+      }
+
       if (dirtyLedger.length > 0) {
         const cloudLedger = dirtyLedger.map(le => ({
           id: le.id,
@@ -223,13 +296,33 @@ export class SyncEngine {
           note: le.note,
           created_at: le.created_at
         }));
-        await cloudAdapter.upsertLedgerEntries(cloudLedger);
+        
+        try {
+          console.log('SyncEngine.pushPending: Pushing ledger entries to cloud');
+          await cloudAdapter.upsertLedgerEntries(cloudLedger);
+        } catch (err: any) {
+          console.error('SyncEngine.pushPending: Cloud ledger upsert failed:', err?.message || err);
+          throw err;
+        }
+
         for (const le of dirtyLedger) {
-          await ledgerQueries.markSynced(le.id);
+          try {
+            console.log('SyncEngine.pushPending: Marking ledger entry synced:', le.id);
+            await ledgerQueries.markSynced(le.id);
+          } catch (err: any) {
+            console.error('SyncEngine.pushPending: markSynced failed for ledger entry', le.id, ':', err?.message || err);
+            throw err;
+          }
         }
       }
 
-      await this.calculateDirtyCount();
+      try {
+        console.log('SyncEngine.pushPending: Recalculating dirty count');
+        await this.calculateDirtyCount();
+      } catch (err: any) {
+        console.error('SyncEngine.pushPending: calculateDirtyCount failed:', err?.message || err);
+        throw err;
+      }
     } catch (err) {
       console.error('pushPending failed:', err);
       throw err;

@@ -293,7 +293,11 @@ export default function LoginScreen() {
               placeholderTextColor={colors.textMuted}
               keyboardType="phone-pad"
               value={mobile}
-              onChangeText={setMobile}
+              onChangeText={(text) => {
+                const hasLeadingPlus = text.startsWith('+');
+                const digits = text.replace(/\D/g, '');
+                setMobile(hasLeadingPlus ? '+' + digits : digits);
+              }}
             />
 
             {/* 4-digit PIN input boxes */}

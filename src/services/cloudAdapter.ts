@@ -211,9 +211,19 @@ export const cloudAdapter = {
         throw err;
       }
     } else {
+      const mappedRows = rows.map(r => ({
+        id: r.id,
+        store_id: r.store_id,
+        customer_id: r.customer_id,
+        entry_type: r.entry_type,
+        total_amount: r.total_amount,
+        paid_amount: r.paid_amount,
+        description: r.note,
+        created_at: r.created_at
+      }));
       const { error } = await supabase
         .from('ledger_entries')
-        .upsert(rows, { onConflict: 'id' });
+        .upsert(mappedRows, { onConflict: 'id' });
 
       if (error) {
         console.error('Supabase upsertLedgerEntries failed:', error);
@@ -244,7 +254,16 @@ export const cloudAdapter = {
         throw error;
       }
 
-      return (data || []) as CloudLedgerEntry[];
+      return (data || []).map((row: any) => ({
+        id: row.id,
+        store_id: row.store_id,
+        customer_id: row.customer_id,
+        entry_type: row.entry_type,
+        total_amount: Number(row.total_amount),
+        paid_amount: Number(row.paid_amount),
+        note: row.description || null,
+        created_at: row.created_at
+      })) as CloudLedgerEntry[];
     }
   }
 };

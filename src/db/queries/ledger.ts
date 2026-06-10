@@ -26,7 +26,7 @@ export interface ReportRow extends LedgerEntryRow {
 }
 
 export const ledgerQueries = {
-  async getTotalBaki(storeId: string): Promise<number> {
+  async getTotalDue(storeId: string): Promise<number> {
     const db = getDatabase();
     const row = await db.getFirstAsync<{ total_due: number }>(
       `SELECT SUM(total_amount - paid_amount) as total_due FROM ledger_entries WHERE store_id = ?;`,

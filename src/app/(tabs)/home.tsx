@@ -1,7 +1,8 @@
 import * as Crypto from 'expo-crypto';
-import { useRouter, Redirect } from 'expo-router';
+import { Redirect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Linking,
   Platform,
@@ -12,7 +13,8 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { RefreshCw } from 'lucide-react-native';
 
 import { AddCustomerDrawer } from '../../components/AddCustomerDrawer';
 import { BottomTabInset, colors, radius, spacing } from '../../constants/theme';
@@ -21,7 +23,6 @@ import { useSync } from '../../context/sync-context';
 import { customerQueries, CustomerRow } from '../../db/queries/customers';
 import { DefaulterRow, LedgerEntryRow, ledgerQueries } from '../../db/queries/ledger';
 import { useTheme } from '../../hooks/use-theme';
-import LoginScreen from '../(auth)/login';
 
 // Custom icons
 const SyncedIcon = ({ color }: { color: string }) => (
@@ -46,14 +47,13 @@ export default function HomeScreen() {
   const { isLoggedIn, selectedBranch, storeId, isOfflineMode, logout } = useAuth();
   const { status, syncAll } = useSync();
   const theme = useTheme();
-  const insets = useSafeAreaInsets();
   const router = useRouter();
 
   // Active View State: 'dashboard' | 'customer-ledger'
   const [currentView, setCurrentView] = useState<'dashboard' | 'customer-ledger'>('dashboard');
 
   // Local Database States
-  const [totalBaki, setTotalBaki] = useState(0);
+  const [totalDue, setTotalDue] = useState(0);
   const [todayCollection, setTodayCollection] = useState(0);
   const [defaulters, setDefaulters] = useState<DefaulterRow[]>([]);
   const [dashboardSearch, setDashboardSearch] = useState('');
@@ -64,17 +64,17 @@ export default function HomeScreen() {
   const [customerTx, setCustomerTx] = useState<LedgerEntryRow[]>([]);
 
   // Modals / Drawers
-  const [addCustVisible, setAddCustVisible] = useState(false);
+  const [addCustomerVisible, setAddCustomerVisible] = useState(false);
 
   // Load KPI metrics and Defaulters list from SQLite
   const loadDashboardData = useCallback(async () => {
     if (!storeId) return;
     try {
-      const bakiSum = await ledgerQueries.getTotalBaki(storeId);
+      const dueSum = await ledgerQueries.getTotalDue(storeId);
       const collectionSum = await ledgerQueries.getTodayCollection(storeId);
       const topDefaultersList = await ledgerQueries.getTopDefaulters(storeId, 20);
 
-      setTotalBaki(bakiSum);
+      setTotalDue(dueSum);
       setTodayCollection(collectionSum);
       setDefaulters(topDefaultersList);
     } catch (err) {
@@ -86,9 +86,9 @@ export default function HomeScreen() {
   const loadCustomerLedger = useCallback(async (customerId: string) => {
     if (!storeId) return;
     try {
-      const cust = await customerQueries.getCustomerById(storeId, customerId);
+      const customer = await customerQueries.getCustomerById(storeId, customerId);
       const txs = await ledgerQueries.getCustomerTransactions(storeId, customerId);
-      setSelectedCustomer(cust);
+      setSelectedCustomer(customer);
       setCustomerTx(txs);
     } catch (err) {
       console.warn('Failed to load customer ledger:', err);
@@ -319,9 +319,6 @@ export default function HomeScreen() {
 
   // 2. DASHBOARD / HOME VIEW
   const statusColor = isOfflineMode ? '#f39c12' : (status.dirtyCount > 0 ? '#3498db' : '#2ecc71');
-  const syncLabel = isOfflineMode
-    ? (status.dirtyCount > 0 ? `Offline (${status.dirtyCount} pending)` : 'Offline')
-    : (status.dirtyCount > 0 ? `Syncing (${status.dirtyCount})` : 'Synced');
 
   return (
     <View style={[styles.mainContainer, { backgroundColor: theme.background }]}>
@@ -337,10 +334,12 @@ export default function HomeScreen() {
           </View>
           <View style={styles.syncedContainer}>
             <SyncedIcon color={statusColor} />
-            <TouchableOpacity onPress={syncAll}>
-              <Text style={[styles.syncedText, { color: isOfflineMode ? '#e67e22' : colors.primary, fontSize: 13, fontWeight: '700' }]}>
-                {syncLabel}
-              </Text>
+            <TouchableOpacity onPress={syncAll} style={{ padding: 4, marginRight: 4 }}>
+              {status.syncing ? (
+                <ActivityIndicator size="small" color={isOfflineMode ? '#e67e22' : colors.primary} style={{ transform: [{ scale: 0.8 }] }} />
+              ) : (
+                <RefreshCw size={15} color={isOfflineMode ? '#e67e22' : colors.primary} />
+              )}
             </TouchableOpacity>
             <TouchableOpacity onPress={logout} style={styles.logoutBtn}>
               <Text style={{ fontSize: 12, color: theme.textSecondary, fontWeight: '600' }}>Log out</Text>
@@ -356,9 +355,9 @@ export default function HomeScreen() {
           <View style={styles.kpiRow}>
             {/* Total Outstanding Card (Red) */}
             <View style={[styles.kpiCard, { backgroundColor: theme.backgroundElement }]}>
-              <Text style={[styles.kpiLabel, { color: theme.textSecondary }]}>Total Baki Outstanding</Text>
+              <Text style={[styles.kpiLabel, { color: theme.textSecondary }]}>Total Due Outstanding</Text>
               <Text style={[styles.kpiValue, { color: colors.danger }]}>
-                ৳ {totalBaki.toLocaleString()}
+                ৳ {totalDue.toLocaleString()}
               </Text>
             </View>
 
@@ -384,7 +383,7 @@ export default function HomeScreen() {
             <TouchableOpacity
               style={[styles.actionBtnOutline, { borderColor: colors.primary }]}
               activeOpacity={0.8}
-              onPress={() => setAddCustVisible(true)}
+              onPress={() => setAddCustomerVisible(true)}
             >
               <Text style={[styles.actionBtnOutlineText, { color: colors.primary }]}>Add Customer</Text>
             </TouchableOpacity>
@@ -467,8 +466,8 @@ export default function HomeScreen() {
 
       {/* Add Customer Modal Drawer Component */}
       <AddCustomerDrawer
-        visible={addCustVisible}
-        onClose={() => setAddCustVisible(false)}
+        visible={addCustomerVisible}
+        onClose={() => setAddCustomerVisible(false)}
         onSaveSuccess={loadDashboardData}
       />
     </View>
