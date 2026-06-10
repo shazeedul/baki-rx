@@ -1,20 +1,20 @@
 import {
-  Tabs,
   TabList,
-  TabTrigger,
-  TabSlot,
-  TabTriggerSlotProps,
   TabListProps,
+  Tabs,
+  TabSlot,
+  TabTrigger,
+  TabTriggerSlotProps,
 } from 'expo-router/ui';
 import { SymbolView } from 'expo-symbols';
-import { Pressable, useColorScheme, View, StyleSheet } from 'react-native';
-import { Home, PlusCircle, ClipboardList } from 'lucide-react-native';
+import { ClipboardList, Home, PlusCircle } from 'lucide-react-native';
+import { Pressable, StyleSheet, useColorScheme, View } from 'react-native';
 
-import { ExternalLink } from '../../components/external-link';
-import { ThemedText } from '../../components/themed-text';
-import { ThemedView } from '../../components/themed-view';
+import { ExternalLink } from '@/components/external-link';
+import { ThemedText } from '@/components/themed-text';
+import { ThemedView } from '@/components/themed-view';
 
-import { Colors, MaxContentWidth, Spacing, colors as themeColors } from '../../constants/theme';
+import { Colors, MaxContentWidth, Spacing, colors as themeColors } from '@/constants/theme';
 
 export default function AppTabs() {
   return (
@@ -51,9 +51,9 @@ export function TabButton({ children, isFocused, icon: IconComponent, ...props }
         ]}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
           <IconComponent color={isFocused ? themeColors.primary : '#64748B'} size={16} />
-          <ThemedText 
-            type="smallBold" 
-            style={{ 
+          <ThemedText
+            type="smallBold"
+            style={{
               color: isFocused ? themeColors.primary : '#64748B',
               paddingBottom: 4,
             }}

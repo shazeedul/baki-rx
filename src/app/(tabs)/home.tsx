@@ -1,5 +1,6 @@
 import * as Crypto from 'expo-crypto';
 import { Redirect, useRouter } from 'expo-router';
+import { RefreshCw } from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -14,15 +15,14 @@ import {
   View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { RefreshCw } from 'lucide-react-native';
 
-import { AddCustomerDrawer } from '../../components/AddCustomerDrawer';
-import { BottomTabInset, colors, radius, spacing } from '../../constants/theme';
-import { useAuth } from '../../context/auth-context';
-import { useSync } from '../../context/sync-context';
-import { customerQueries, CustomerRow } from '../../db/queries/customers';
-import { DefaulterRow, LedgerEntryRow, ledgerQueries } from '../../db/queries/ledger';
-import { useTheme } from '../../hooks/use-theme';
+import { AddCustomerDrawer } from '@/components/AddCustomerDrawer';
+import { BottomTabInset, colors, radius, spacing } from '@/constants/theme';
+import { useAuth } from '@/context/auth-context';
+import { useSync } from '@/context/sync-context';
+import { customerQueries, CustomerRow } from '@/db/queries/customers';
+import { DefaulterRow, LedgerEntryRow, ledgerQueries } from '@/db/queries/ledger';
+import { useTheme } from '@/hooks/use-theme';
 
 // Custom icons
 const SyncedIcon = ({ color }: { color: string }) => (
@@ -37,31 +37,17 @@ const SearchIcon = ({ color }: { color: string }) => (
   <Text style={{ color, fontSize: 16, marginRight: spacing.sm }}>🔍</Text>
 );
 
-const WhatsAppIcon = () => (
-  <View style={styles.whatsappLogoContainer}>
-    <Text style={styles.whatsappText}>💬</Text>
-  </View>
-);
-
 export default function HomeScreen() {
   const { isLoggedIn, selectedBranch, storeId, isOfflineMode, logout } = useAuth();
   const { status, syncAll } = useSync();
   const theme = useTheme();
   const router = useRouter();
 
-  // Active View State: 'dashboard' | 'customer-ledger'
-  const [currentView, setCurrentView] = useState<'dashboard' | 'customer-ledger'>('dashboard');
-
   // Local Database States
   const [totalDue, setTotalDue] = useState(0);
   const [todayCollection, setTodayCollection] = useState(0);
   const [defaulters, setDefaulters] = useState<DefaulterRow[]>([]);
   const [dashboardSearch, setDashboardSearch] = useState('');
-
-  // Selected Customer Ledger States
-  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
-  const [selectedCustomer, setSelectedCustomer] = useState<CustomerRow | null>(null);
-  const [customerTx, setCustomerTx] = useState<LedgerEntryRow[]>([]);
 
   // Modals / Drawers
   const [addCustomerVisible, setAddCustomerVisible] = useState(false);
@@ -82,98 +68,10 @@ export default function HomeScreen() {
     }
   }, [storeId]);
 
-  // Load selected customer profile and transaction history
-  const loadCustomerLedger = useCallback(async (customerId: string) => {
-    if (!storeId) return;
-    try {
-      const customer = await customerQueries.getCustomerById(storeId, customerId);
-      const txs = await ledgerQueries.getCustomerTransactions(storeId, customerId);
-      setSelectedCustomer(customer);
-      setCustomerTx(txs);
-    } catch (err) {
-      console.warn('Failed to load customer ledger:', err);
-    }
-  }, [storeId]);
-
   // Initial Load and Auto-Refresh on focus/actions
   useEffect(() => {
     loadDashboardData();
   }, [loadDashboardData, status.dirtyCount]);
-
-  useEffect(() => {
-    if (selectedCustomerId) {
-      loadCustomerLedger(selectedCustomerId);
-    }
-  }, [selectedCustomerId, loadCustomerLedger]);
-
-  // Trigger Cash Collection Dialog (Section 7b / 7c)
-  const handleCollectCash = () => {
-    if (!selectedCustomer) return;
-
-    Alert.prompt(
-      'Collect Cash',
-      `Enter payment amount collected from ${selectedCustomer.name}:`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Collect',
-          onPress: async (val?: string) => {
-            const amount = parseFloat(val || '0');
-            if (isNaN(amount) || amount <= 0) {
-              Alert.alert('Invalid Input', 'Please enter a valid amount.');
-              return;
-            }
-            try {
-              const entryId = Crypto.randomUUID();
-              await ledgerQueries.createLedgerEntry({
-                id: entryId,
-                store_id: storeId,
-                customer_id: selectedCustomer.id,
-                entry_type: 'collection', // payment received is a credit entry
-                total_amount: 0,
-                paid_amount: amount,
-                note: 'Cash collection payment',
-                is_dirty: 1 // mandatory dirty flag
-              });
-
-              Alert.alert('Success', `Collected ৳${amount.toLocaleString()}! (Offline Safe)`);
-
-              // Refresh data
-              if (selectedCustomerId) {
-                await loadCustomerLedger(selectedCustomerId);
-              }
-              await loadDashboardData();
-            } catch (err) {
-              console.error('Collect cash database error:', err);
-              Alert.alert('Database Error', 'Failed to save cash payment.');
-            }
-          }
-        }
-      ],
-      'plain-text',
-      '',
-      'number-pad'
-    );
-  };
-
-  // WhatsApp reminder sharing (Section 8 rules)
-  const handleWhatsAppShare = () => {
-    if (!selectedCustomer) return;
-
-    // Compute total outstanding from transaction list
-    const outstanding = customerTx.reduce((sum, tx) => sum + (tx.total_amount - tx.paid_amount), 0);
-    const msg = `Hello ${selectedCustomer.name}, your total outstanding dues at ${selectedBranch.split(' (')[0]} is ৳${outstanding.toLocaleString()}. Please clear it as soon as possible. Thank you.`;
-    const cleanPhone = selectedCustomer.phone.replace(/[^0-9]/g, '');
-
-    if (Platform.OS === 'web') {
-      window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`, '_blank');
-    } else {
-      Linking.openURL(`whatsapp://send?phone=${cleanPhone}&text=${encodeURIComponent(msg)}`).catch(() => {
-        // Fallback if whatsapp not installed on native
-        Alert.alert('WhatsApp Reminder Generated', msg);
-      });
-    }
-  };
 
   // Filter defaulters list locally by search query
   const filteredDefaulters = useMemo(() => {
@@ -187,134 +85,6 @@ export default function HomeScreen() {
   // Redirect to login if not logged in (moved here to satisfy Rules of Hooks)
   if (!isLoggedIn) {
     return <Redirect href="/(auth)/login" />;
-  }
-
-  // --- RENDERING VIEWS ---
-
-  // 1. CUSTOMER LEDGER DETAIL SUB-SCREEN
-  if (currentView === 'customer-ledger' && selectedCustomer) {
-    // Compute running balance chronologically
-    const computedTxList = [...customerTx]
-      .reverse() // Sort oldest first to calculate running balance
-      .reduce((acc: any[], tx) => {
-        const lastBal = acc.length > 0 ? acc[acc.length - 1].balance : 0;
-        const currentBal = lastBal + (tx.total_amount - tx.paid_amount);
-        acc.push({
-          ...tx,
-          date: new Date(tx.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-          description: tx.entry_type === 'sale' ? 'Medicine Purchase' : 'Payment Received',
-          debit: tx.entry_type === 'sale' ? tx.total_amount : 0,
-          credit: tx.paid_amount,
-          balance: currentBal
-        });
-        return acc;
-      }, []);
-
-    // Reverse back to newest first for list view
-    const displayTxList = [...computedTxList].reverse();
-    const currentOutstanding = computedTxList.length > 0 ? computedTxList[computedTxList.length - 1].balance : 0;
-
-    const initials = selectedCustomer.name
-      .split(' ')
-      .map((n) => n[0])
-      .join('')
-      .substring(0, 2)
-      .toUpperCase();
-
-    return (
-      <View style={[styles.mainContainer, { backgroundColor: theme.background }]}>
-        <SafeAreaView style={styles.safeArea}>
-          {/* Header */}
-          <View style={styles.header}>
-            <TouchableOpacity onPress={() => setCurrentView('dashboard')} style={styles.backButton}>
-              <Text style={[styles.headerTitle, { color: theme.text }]}>← Back to Dashboard</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Profile Card */}
-          <View style={[styles.profileCard, { backgroundColor: theme.backgroundElement }]}>
-            <View style={styles.profileMainRow}>
-              <View style={[styles.avatarLarge, { backgroundColor: colors.primary }]}>
-                <Text style={styles.avatarLargeText}>{initials}</Text>
-              </View>
-              <View style={styles.profileDetails}>
-                <Text style={[styles.profileName, { color: theme.text }]}>{selectedCustomer.name}</Text>
-                <Text style={[styles.profilePhone, { color: theme.textSecondary }]}>{selectedCustomer.phone}</Text>
-              </View>
-            </View>
-
-            {/* Outstanding Box */}
-            <View style={[styles.dueBox, { backgroundColor: colors.dangerBg }]}>
-              <Text style={[styles.dueLabel, { color: colors.danger }]}>Total Outstanding Dues</Text>
-              <Text style={[styles.dueAmountLarge, { color: colors.danger }]}>
-                ৳ {currentOutstanding.toLocaleString()}
-              </Text>
-            </View>
-
-            {/* Action Row */}
-            <View style={styles.ledgerActionRow}>
-              <TouchableOpacity
-                style={[styles.whatsappBtn, { borderColor: '#26d366' }]}
-                activeOpacity={0.8}
-                onPress={handleWhatsAppShare}
-              >
-                <WhatsAppIcon />
-                <Text style={styles.whatsappBtnText}>Send Reminder</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.collectCashBtn, { backgroundColor: colors.primary }]}
-                activeOpacity={0.8}
-                onPress={handleCollectCash}
-              >
-                <Text style={styles.collectCashBtnText}>Collect Cash</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* Transaction History */}
-          <Text style={[styles.sectionTitle, { marginHorizontal: spacing.xl, marginTop: spacing.md }]}>
-            Ledger Transaction History
-          </Text>
-
-          {/* Table Headers */}
-          <View style={styles.tableHeader}>
-            <Text style={[styles.colHeader, { flex: 1.5, color: theme.textSecondary }]}>Date</Text>
-            <Text style={[styles.colHeader, { flex: 3.5, color: theme.textSecondary }]}>Details</Text>
-            <Text style={[styles.colHeader, { flex: 2, textAlign: 'right', color: theme.textSecondary }]}>Debit</Text>
-            <Text style={[styles.colHeader, { flex: 2, textAlign: 'right', color: theme.textSecondary }]}>Credit</Text>
-            <Text style={[styles.colHeader, { flex: 2.5, textAlign: 'right', color: theme.textSecondary }]}>Balance</Text>
-          </View>
-
-          {/* History Scroll List */}
-          <ScrollView contentContainerStyle={{ paddingBottom: BottomTabInset + spacing.lg }}>
-            {displayTxList.length === 0 ? (
-              <View style={styles.emptyHistory}>
-                <Text style={{ color: theme.textSecondary }}>No transactions recorded yet.</Text>
-              </View>
-            ) : (
-              displayTxList.map((tx) => (
-                <View key={tx.id} style={styles.tableRow}>
-                  <Text style={[styles.rowText, { flex: 1.5, color: theme.text }]}>{tx.date}</Text>
-                  <Text style={[styles.rowText, { flex: 3.5, color: theme.text }]} numberOfLines={1}>
-                    {tx.description}
-                  </Text>
-                  <Text style={[styles.rowText, { flex: 2, textAlign: 'right', color: tx.debit > 0 ? colors.danger : theme.textSecondary }]}>
-                    {tx.debit > 0 ? `+${tx.debit}` : '-'}
-                  </Text>
-                  <Text style={[styles.rowText, { flex: 2, textAlign: 'right', color: tx.credit > 0 ? colors.primary : theme.textSecondary }]}>
-                    {tx.credit > 0 ? `-${tx.credit}` : '-'}
-                  </Text>
-                  <Text style={[styles.rowText, { flex: 2.5, textAlign: 'right', fontWeight: '700', color: theme.text }]}>
-                    {tx.balance.toLocaleString()}
-                  </Text>
-                </View>
-              ))
-            )}
-          </ScrollView>
-        </SafeAreaView>
-      </View>
-    );
   }
 
   // 2. DASHBOARD / HOME VIEW
@@ -433,8 +203,7 @@ export default function HomeScreen() {
                     style={[styles.customerRow, { borderBottomColor: colors.border }]}
                     activeOpacity={0.7}
                     onPress={() => {
-                      setSelectedCustomerId(d.customer_id);
-                      setCurrentView('customer-ledger');
+                      router.push(`/(tabs)/customer-ledger?id=${d.customer_id}` as any);
                     }}
                   >
                     {/* Rank Indicator and Avatar */}

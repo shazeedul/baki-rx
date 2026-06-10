@@ -11,8 +11,8 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors, radius, spacing } from '../../constants/theme';
-import { useAuth } from '../../context/auth-context';
+import { colors, radius, spacing } from '@/constants/theme';
+import { useAuth } from '@/context/auth-context';
 
 export default function LoginScreen() {
   const { stores, users, refreshUsers, syncUsers, syncTenantByName, login, isLoggedIn } = useAuth();

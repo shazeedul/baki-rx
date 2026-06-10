@@ -1,24 +1,24 @@
-import React, { useState, useMemo } from 'react';
+import { AddCustomerDrawer } from '@/components/AddCustomerDrawer';
+import { CustomerSearchDropdown } from '@/components/CustomerSearchDropdown';
+import { colors, radius, spacing } from '@/constants/theme';
+import { useAuth } from '@/context/auth-context';
+import { CustomerRow } from '@/db/queries/customers';
+import { ledgerQueries } from '@/db/queries/ledger';
+import * as Crypto from 'expo-crypto';
+import { Redirect, useRouter } from 'expo-router';
+import { useMemo, useState } from 'react';
 import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  ScrollView,
-  StyleSheet,
   Alert,
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter, Redirect } from 'expo-router';
-import * as Crypto from 'expo-crypto';
-import { colors, spacing, radius } from '../../constants/theme';
-import { useAuth } from '../../context/auth-context';
-import { CustomerSearchDropdown } from '../../components/CustomerSearchDropdown';
-import { AddCustomerDrawer } from '../../components/AddCustomerDrawer';
-import { ledgerQueries } from '../../db/queries/ledger';
-import { CustomerRow } from '../../db/queries/customers';
 
 export default function NewSaleEntryScreen() {
   const router = useRouter();
@@ -27,7 +27,7 @@ export default function NewSaleEntryScreen() {
   if (!isLoggedIn) {
     return <Redirect href="/(auth)/login" />;
   }
-  
+
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerRow | null>(null);
   const [totalBill, setTotalBill] = useState('');
   const [paidAmount, setPaidAmount] = useState('0');
@@ -94,7 +94,7 @@ export default function NewSaleEntryScreen() {
           </View>
 
           <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-            
+
             {/* Customer Section */}
             <Text style={styles.label}>Select Customer</Text>
             {selectedCustomer ? (

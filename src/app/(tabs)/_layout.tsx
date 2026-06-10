@@ -1,6 +1,6 @@
 import { Tabs } from 'expo-router';
 import { useColorScheme } from 'react-native';
-import { Colors, colors as themeColors } from '../../constants/theme';
+import { Colors, colors as themeColors } from '@/constants/theme';
 import { Home, PlusCircle, ClipboardList } from 'lucide-react-native';
 
 export default function TabLayout() {
@@ -39,6 +39,12 @@ export default function TabLayout() {
         options={{
           title: 'Reports',
           tabBarIcon: ({ color, size }) => <ClipboardList color={color} size={size} />,
+        }}
+      />
+      <Tabs.Screen
+        name="customer-ledger"
+        options={{
+          href: null,
         }}
       />
     </Tabs>
