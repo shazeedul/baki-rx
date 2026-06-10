@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { initDatabase, getDatabase } from '../db/schema';
 import { customerQueries } from '../db/queries/customers';
 import { ledgerQueries } from '../db/queries/ledger';
-import { terminalQueries } from '../db/queries/terminals';
+import { userQueries } from '../db/queries/users';
 
 describe('Relational DB SQLite Queries', () => {
   beforeEach(async () => {
@@ -10,7 +10,7 @@ describe('Relational DB SQLite Queries', () => {
     await initDatabase();
   });
 
-  it('can upsert and query terminals', async () => {
+  it('can upsert and query users', async () => {
     const term = {
       id: 'term-1',
       store_id: 'store-1',
@@ -23,20 +23,20 @@ describe('Relational DB SQLite Queries', () => {
       created_at: new Date().toISOString()
     };
 
-    await terminalQueries.upsertTerminals([term]);
+    await userQueries.upsertUsers([term]);
     
-    const fetched = await terminalQueries.getTerminalByPhoneAndStore('01700000000', 'store-1'); // none exists with phone '01700000000'
+    const fetched = await userQueries.getUserByPhoneAndStore('01700000000', 'store-1'); // none exists with phone '01700000000'
     expect(fetched).toBeNull();
 
     // Now insert one with phone in mock list
     const termWithPhone = {
       ...term,
       id: 'term-2',
-      phone: '01711111111' // our mock allows custom properties in terminal
+      phone: '01711111111' // our mock allows custom properties in user
     };
-    await terminalQueries.upsertTerminals([termWithPhone]);
+    await userQueries.upsertUsers([termWithPhone]);
 
-    const all = await terminalQueries.getAllTerminals();
+    const all = await userQueries.getAllUsers();
     expect(all.length).toBeGreaterThanOrEqual(1);
   });
 

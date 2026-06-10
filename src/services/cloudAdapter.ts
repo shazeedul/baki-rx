@@ -23,7 +23,7 @@ export interface CloudLedgerEntry {
   created_at: string;
 }
 
-export interface CloudTerminal {
+export interface CloudUser {
   id: string;
   tenant_id: string;
   store_id: string;
@@ -123,14 +123,14 @@ export const cloudAdapter = {
     }
   },
 
-  async pullTerminals(tenantId: string): Promise<CloudTerminal[]> {
+  async pullUsers(tenantId: string): Promise<CloudUser[]> {
     if (MODE === 'custom') {
       try {
         const response = await fetch(`${FUTURE_API_URL}/users?tenant_id=${encodeURIComponent(tenantId)}`);
-        if (!response.ok) throw new Error(`Custom API pullTerminals status ${response.status}`);
+        if (!response.ok) throw new Error(`Custom API pullUsers status ${response.status}`);
         return await response.json();
       } catch (err) {
-        console.error('Custom API pullTerminals failed:', err);
+        console.error('Custom API pullUsers failed:', err);
         throw err;
       }
     } else {
@@ -140,7 +140,7 @@ export const cloudAdapter = {
         .eq('tenant_id', tenantId);
 
       if (error) {
-        console.error('Supabase pullTerminals failed:', error);
+        console.error('Supabase pullUsers failed:', error);
         throw error;
       }
       return data || [];

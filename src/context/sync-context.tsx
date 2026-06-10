@@ -7,7 +7,7 @@ type SyncContextType = {
   engine: SyncEngine;
   status: SyncEngineStatus;
   syncAll: () => Promise<void>;
-  syncTerminals: (tenantId: string) => Promise<void>;
+  syncUsers: (tenantId: string) => Promise<void>;
 };
 
 const SyncContext = createContext<SyncContextType | undefined>(undefined);
@@ -68,15 +68,15 @@ export const SyncProvider: React.FC<{ children?: React.ReactNode }> = ({ childre
     }
   };
 
-  const syncTerminals = async (tenantId: string) => {
-    await syncEngineInstance.syncTerminals(tenantId);
+  const syncUsers = async (tenantId: string) => {
+    await syncEngineInstance.syncUsers(tenantId);
   };
 
   const value = useMemo(() => ({
     engine: syncEngineInstance,
     status,
     syncAll,
-    syncTerminals
+    syncUsers
   }), [status]);
 
   return <SyncContext.Provider value={value}>{children}</SyncContext.Provider>;

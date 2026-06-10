@@ -9,7 +9,7 @@ This file is the single source of truth for architecture decisions, conventions,
 
 **App Name:** Baki Rx Ledger
 **Type:** Multi-tenant, local-first SaaS — Android (React Native / Expo)
-**Domain:** Pharmacy credit (baki) management across multiple branch terminals
+**Domain:** Pharmacy credit (baki) management across multiple branch users
 **Core Constraint:** The app must function 100% offline. The internet is optional, never a dependency.
 
 ---
@@ -103,9 +103,9 @@ User Action
 The running balance is always derived locally by summing ledger deltas for a customer.
 
  
-### Terminal Sync & Authentication Flow
+### User Sync & Authentication Flow
  
-Terminals are synced from the cloud database during the Tenant Setup & Sync step, not eagerly on every login. Login is a purely offline local-first lookup, and the app does not make network requests during login attempts.
+Users are synced from the cloud database during the Tenant Setup & Sync step, not eagerly on every login. Login is a purely offline local-first lookup, and the app does not make network requests during login attempts.
  
 #### Login Auth Flow
  
@@ -113,8 +113,8 @@ Terminals are synced from the cloud database during the Tenant Setup & Sync step
 User submits: mobile number + PIN + store selection
         │
         ▼
-Query local terminals table:
-  SELECT * FROM terminals
+Query local users table:
+  SELECT * FROM users
   WHERE phone = ? AND store_id = ?
         │
         ├─ ROW FOUND ──────────────────────────────────────────────────────────►
@@ -124,29 +124,29 @@ Query local terminals table:
         │                                                                        │
         └─ ROW NOT FOUND ──────────────────────────────────────────────────────►
              Show error:
-             "Terminal not found on this device.
-              Please check your credentials or sync terminal data."
+             "User not found on this device.
+              Please check your credentials or sync user data."
 ```
  
-#### `SyncEngine.syncTerminals()` Contract
+#### `SyncEngine.syncUsers()` Contract
  
 ```typescript
 // src/sync/SyncEngine.ts
  
-async syncTerminals(tenantId: string): Promise<void> {
+async syncUsers(tenantId: string): Promise<void> {
   // tenantId sourced from EXPO_PUBLIC_TENANT_ID (baked into the app build)
-  // — available before auth, required for the pre-auth terminal pull
-  const rows = await cloudAdapter.pullTerminals(tenantId);
+  // — available before auth, required for the pre-auth user pull
+  const rows = await cloudAdapter.pullUsers(tenantId);
   if (!rows || rows.length === 0) return;
  
-  // Terminals are cloud-authoritative. Unconditional overwrite — no is_dirty flag.
-  await db.upsertTerminals(rows);
+  // Users are cloud-authoritative. Unconditional overwrite — no is_dirty flag.
+  await db.upsertUsers(rows);
  
-  syncStore.setState({ lastTerminalSyncedAt: new Date().toISOString() });
+  syncStore.setState({ lastUserSyncedAt: new Date().toISOString() });
 }
 ```
  
-**Upsert rule:** `INSERT OR REPLACE` keyed on `id`. The `terminals` table has no `is_dirty` flag. Every pulled row overwrites the local copy unconditionally.
+**Upsert rule:** `INSERT OR REPLACE` keyed on `id`. The `users` table has no `is_dirty` flag. Every pulled row overwrites the local copy unconditionally.
  
 **`syncStore` additions for this feature:**
  
@@ -154,7 +154,7 @@ async syncTerminals(tenantId: string): Promise<void> {
 interface SyncStore {
   dirtyCount:           number;
   lastSyncedAt:         string | null;
-  lastTerminalSyncedAt: string | null;  // set after syncTerminals() succeeds
+  lastUserSyncedAt: string | null;  // set after syncUsers() succeeds
 }
 ```
  
@@ -165,7 +165,7 @@ interface SyncStore {
 ### 5a. SQLite (Local — `expo-sqlite`)
 
 ```sql
-CREATE TABLE terminals (
+CREATE TABLE users (
   id          TEXT PRIMARY KEY,
   store_id    TEXT NOT NULL,
   tenant_id   TEXT NOT NULL,
@@ -241,7 +241,7 @@ CREATE POLICY stores_tenant_isolation ON stores
   USING (tenant_id = (auth.jwt() -> 'user_metadata' ->> 'tenant_id')::uuid);
  
 -- ─────────────────────────────────────────────
--- USERS (formerly terminals)
+-- USERS (formerly users)
 -- One row per physical device/clerk per branch.
 -- Holds the PIN hash used for offline auth.
 -- ─────────────────────────────────────────────
@@ -315,7 +315,7 @@ Every authenticated user's JWT `user_metadata` must contain:
 }
 ```
  
-These are set at the time a terminal/clerk account is created (service-role operation). The RLS policies on `stores`, `users`, `customers`, and `ledger_entries` all read from these claims — if either claim is missing, all queries return zero rows.
+These are set at the time a user/clerk account is created (service-role operation). The RLS policies on `stores`, `users`, `customers`, and `ledger_entries` all read from these claims — if either claim is missing, all queries return zero rows.
 
 #### Table Ownership Summary
  
@@ -369,15 +369,15 @@ export const cloudAdapter = {
 ## 7. Screen Map & Component Contracts
 
 ### 7a. Login Screen — `(auth)/login.tsx`
-**Purpose:** Terminal activation (online or offline)
+**Purpose:** User activation (online or offline)
 
 | Element                  | Behavior                                                       |
 |--------------------------|----------------------------------------------------------------|
-| Branch Terminal dropdown | Populated from local `terminals` table                         |
+| Branch User dropdown | Populated from local `users` table                         |
 | Mobile number input      | `keyboardType="phone-pad"`                                     |
 | 4-digit PIN input        | 4 separate single-char inputs; `secureTextEntry`; auto-focus-next |
 | Offline Mode badge       | Always visible; green if offline-ready, amber if first-time setup |
-| Log In button            | Online: validate via Supabase Auth → cache JWT. Offline: compare PIN hash from local `terminals` table |
+| Log In button            | Online: validate via Supabase Auth → cache JWT. Offline: compare PIN hash from local `users` table |
 
 **Post-login:** Store `store_id`, `tenant_id`, `branch_name` in `authStore`. Navigate to Home.
 

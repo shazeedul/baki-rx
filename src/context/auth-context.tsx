@@ -3,7 +3,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Alert, Platform } from 'react-native';
 import { storeQueries, StoreRow } from '../db/queries/stores';
 import { tenantQueries } from '../db/queries/tenants';
-import { terminalQueries, TerminalRow } from '../db/queries/terminals';
+import { userQueries, UserRow } from '../db/queries/users';
 import { initDatabase } from '../db/schema';
 import { clearLocalSession, getLocalSession, saveLocalSession } from '../storage/auth-storage';
 import { supabase } from '../sync/supabase-client';
@@ -20,10 +20,10 @@ type AuthContextType = {
   tenantId: string;
   isOfflineMode: boolean;
   isLoading: boolean;
-  terminals: TerminalRow[];
+  users: UserRow[];
   stores: StoreRow[];
-  refreshTerminals: () => Promise<TerminalRow[]>;
-  syncTerminals: () => Promise<number>;
+  refreshUsers: () => Promise<UserRow[]>;
+  syncUsers: () => Promise<number>;
   syncTenantByName: (tenantName: string) => Promise<boolean>;
   login: (storeId: string, mobile: string, pin: string) => Promise<boolean>;
   logout: () => Promise<void>;
@@ -53,20 +53,20 @@ async function getActiveTenantId(): Promise<string> {
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [selectedBranch, setSelectedBranch] = useState('Choose your terminal');
+  const [selectedBranch, setSelectedBranch] = useState('Choose your user');
   const [mobileNumber, setMobileNumber] = useState('');
   const [storeId, setStoreId] = useState('');
   const [tenantId, setTenantId] = useState('');
   const [isOfflineMode, setIsOfflineMode] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [terminals, setTerminals] = useState<TerminalRow[]>([]);
+  const [users, setUsers] = useState<UserRow[]>([]);
   const [stores, setStores] = useState<StoreRow[]>([]);
 
-  const refreshTerminals = async (): Promise<TerminalRow[]> => {
+  const refreshUsers = async (): Promise<UserRow[]> => {
     try {
       await initDatabase();
-      const list = await terminalQueries.getAllTerminals();
-      setTerminals(list);
+      const list = await userQueries.getAllUsers();
+      setUsers(list);
 
       const activeTenantId = await getActiveTenantId();
       const storeList = await storeQueries.getStoresByTenant(activeTenantId);
@@ -74,31 +74,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       return list;
     } catch (err) {
-      console.warn('Failed to load terminals from database:', err);
+      console.warn('Failed to load users from database:', err);
       return [];
     }
   };
 
-  // Restore session and load terminals on startup
+  // Restore session and load users on startup
   useEffect(() => {
     (async () => {
       try {
         await initDatabase();
-        let list = await refreshTerminals();
+        let list = await refreshUsers();
 
         const activeTenantId = await getActiveTenantId();
         const localTenants = await tenantQueries.getAllTenants();
         const localStores = await storeQueries.getStoresByTenant(activeTenantId);
 
-        // Auto-sync tenants, stores, and terminals on launch if local DB has no stores & tenants data, and device is online
+        // Auto-sync tenants, stores, and users on launch if local DB has no stores & tenants data, and device is online
         if (localTenants.length === 0 && localStores.length === 0) {
           const connected = await isNetworkConnected();
           if (connected) {
             try {
               await syncEngineInstance.syncTenants();
               await syncEngineInstance.syncStores(activeTenantId);
-              await syncEngineInstance.syncTerminals(activeTenantId);
-              list = await refreshTerminals();
+              await syncEngineInstance.syncUsers(activeTenantId);
+              list = await refreshUsers();
             } catch (syncErr) {
               console.warn('Auto initial configuration sync from cloud failed:', syncErr);
             }
@@ -140,25 +140,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const inputPinHash = simpleSHA256(pin + LOCAL_CRYPT_SALT);
 
-    // 1. Query local terminals table
-    let terminal = await terminalQueries.getTerminalByPhoneAndStore(mobile, loginStoreId);
-    console.log('Local terminal lookup result:', terminal);
+    // 1. Query local users table
+    let user = await userQueries.getUserByPhoneAndStore(mobile, loginStoreId);
+    console.log('Local user lookup result:', user);
 
-    if (terminal) {
+    if (user) {
       // Verify PIN
-      if (verifyPin(pin, terminal.pin_hash)) {
-        const branchDisplay = `${terminal.branch_name} (${terminal.store_name})`;
+      if (verifyPin(pin, user.pin_hash)) {
+        const branchDisplay = `${user.branch_name} (${user.store_name})`;
         await saveLocalSession({
           branch: branchDisplay,
           mobile,
-          storeId: terminal.store_id,
-          tenantId: terminal.tenant_id,
+          storeId: user.store_id,
+          tenantId: user.tenant_id,
           pinHash: inputPinHash,
         });
         setSelectedBranch(branchDisplay);
         setMobileNumber(mobile);
-        setStoreId(terminal.store_id);
-        setTenantId(terminal.tenant_id);
+        setStoreId(user.store_id);
+        setTenantId(user.tenant_id);
         setIsLoggedIn(true);
         const connected = await isNetworkConnected();
         setIsOfflineMode(!connected);
@@ -170,7 +170,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } else {
       Alert.alert(
         'Authentication Error',
-        'Terminal not found on this device. Please check your credentials or sync terminal data.'
+        'User not found on this device. Please check your credentials or sync user data.'
       );
       return false;
     }
@@ -184,56 +184,130 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.warn('Clear session error', e);
     }
     setIsLoggedIn(false);
-    setSelectedBranch('Choose your terminal');
+    setSelectedBranch('Choose your user');
     setMobileNumber('');
     setStoreId('');
     setTenantId('');
     setIsOfflineMode(false);
   };
 
-  const syncTerminals = async (): Promise<number> => {
+  const syncUsers = async (): Promise<number> => {
     try {
       const activeTenantId = await getActiveTenantId();
       await syncEngineInstance.syncTenants();
       await syncEngineInstance.syncStores(activeTenantId);
-      await syncEngineInstance.syncTerminals(activeTenantId);
-      const list = await refreshTerminals();
+      await syncEngineInstance.syncUsers(activeTenantId);
+      const list = await refreshUsers();
       return list.length;
     } catch (err) {
-      console.error('Failed to sync remote terminals:', err);
+      console.error('Failed to sync remote users:', err);
       throw err;
     }
   };
 
   const syncTenantByName = async (tenantName: string): Promise<boolean> => {
     try {
-      const tenant = await cloudAdapter.getTenantByName(tenantName);
-      if (!tenant) {
-        return false;
+      console.log('syncTenantByName: starting sync for', tenantName);
+      
+      // Ensure database is initialized and migrated
+      try {
+        await initDatabase();
+        console.log('syncTenantByName: db init/migration complete');
+      } catch (dbInitErr) {
+        console.error('syncTenantByName: initDatabase failed:', dbInitErr);
+        throw dbInitErr;
       }
 
-      // Clear any old tenant configuration dynamically if switching
+      const tenant = await cloudAdapter.getTenantByName(tenantName);
+      if (!tenant) {
+        console.log('syncTenantByName: tenant not found in cloud');
+        return false;
+      }
+      console.log('syncTenantByName: found tenant:', tenant);
+
       const db = require('../db/schema').getDatabase();
-      await db.runAsync('DELETE FROM tenants;');
-      await db.runAsync('DELETE FROM stores;');
-      await db.runAsync('DELETE FROM terminals;');
+
+      // Clear any old tenant configuration dynamically if switching
+      try {
+        console.log('syncTenantByName: clearing tenants table');
+        await db.runAsync('DELETE FROM tenants;');
+      } catch (err: any) {
+        console.error('syncTenantByName: DELETE FROM tenants failed:', err);
+        console.error('Details:', err?.message || err);
+        throw err;
+      }
+
+      try {
+        console.log('syncTenantByName: clearing stores table');
+        await db.runAsync('DELETE FROM stores;');
+      } catch (err: any) {
+        console.error('syncTenantByName: DELETE FROM stores failed:', err);
+        console.error('Details:', err?.message || err);
+        throw err;
+      }
+
+      try {
+        console.log('syncTenantByName: clearing users table');
+        await db.runAsync('DELETE FROM users;');
+      } catch (err: any) {
+        console.error('syncTenantByName: DELETE FROM users failed:', err);
+        console.error('Details:', err?.message || err);
+        throw err;
+      }
 
       // Upsert the tenant locally
-      await tenantQueries.upsertTenants([{
-        id: tenant.id,
-        business_name: tenant.business_name,
-        created_at: tenant.created_at || new Date().toISOString()
-      }]);
+      try {
+        console.log('syncTenantByName: upserting tenant locally');
+        await tenantQueries.upsertTenants([{
+          id: tenant.id,
+          business_name: tenant.business_name,
+          created_at: tenant.created_at || new Date().toISOString()
+        }]);
+      } catch (err: any) {
+        console.error('syncTenantByName: upsertTenants failed:', err);
+        console.error('Details:', err?.message || err);
+        throw err;
+      }
 
-      // Sync stores and terminals for this tenant id
-      await syncEngineInstance.syncStores(tenant.id);
-      console.log(`All stores after upsert:`, await storeQueries.getStoresByTenant(tenant.id));
-      await syncEngineInstance.syncTerminals(tenant.id);
+      // Sync stores and users for this tenant id
+      try {
+        console.log('syncTenantByName: syncing stores from cloud');
+        await syncEngineInstance.syncStores(tenant.id);
+      } catch (err: any) {
+        console.error('syncTenantByName: syncStores failed:', err);
+        console.error('Details:', err?.message || err);
+        throw err;
+      }
 
-      // Refresh terminals so dropdown has them
-      await refreshTerminals();
+      try {
+        console.log('syncTenantByName: checking stores in local DB');
+        console.log(`All stores after upsert:`, await storeQueries.getStoresByTenant(tenant.id));
+      } catch (err: any) {
+        console.warn('syncTenantByName: getStoresByTenant check failed:', err);
+      }
+
+      try {
+        console.log('syncTenantByName: syncing users from cloud');
+        await syncEngineInstance.syncUsers(tenant.id);
+      } catch (err: any) {
+        console.error('syncTenantByName: syncUsers failed:', err);
+        console.error('Details:', err?.message || err);
+        throw err;
+      }
+
+      // Refresh users so dropdown has them
+      try {
+        console.log('syncTenantByName: refreshing local users list');
+        await refreshUsers();
+      } catch (err: any) {
+        console.error('syncTenantByName: refreshUsers failed:', err);
+        console.error('Details:', err?.message || err);
+        throw err;
+      }
+
+      console.log('syncTenantByName: successfully completed sync');
       return true;
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to sync tenant by name:', err);
       throw err;
     }
@@ -249,10 +323,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         tenantId,
         isOfflineMode,
         isLoading,
-        terminals,
+        users,
         stores,
-        refreshTerminals,
-        syncTerminals,
+        refreshUsers,
+        syncUsers,
         syncTenantByName,
         login,
         logout,

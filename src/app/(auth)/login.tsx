@@ -15,7 +15,7 @@ import { colors, radius, spacing } from '../../constants/theme';
 import { useAuth } from '../../context/auth-context';
 
 export default function LoginScreen() {
-  const { stores, terminals, refreshTerminals, syncTerminals, syncTenantByName, login, isLoggedIn } = useAuth();
+  const { stores, users, refreshUsers, syncUsers, syncTenantByName, login, isLoggedIn } = useAuth();
   const router = useRouter();
 
   const [selectedStoreId, setSelectedStoreId] = useState('');
@@ -38,10 +38,10 @@ export default function LoginScreen() {
   const [tenantName, setTenantName] = useState('');
   const [syncingTenant, setSyncingTenant] = useState(false);
 
-  // Load terminals on mount and set initial view based on data availability
+  // Load users on mount and set initial view based on data availability
   useEffect(() => {
     (async () => {
-      const list = await refreshTerminals();
+      const list = await refreshUsers();
       if (list.length === 0) {
         setView('tenant');
       } else {
@@ -106,13 +106,13 @@ export default function LoginScreen() {
     }
   };
 
-  // Determine offline badge status (green if offline-ready/has terminals, amber if first-time/no terminals)
-  const isOfflineReady = terminals.length > 0;
+  // Determine offline badge status (green if offline-ready/has users, amber if first-time/no users)
+  const isOfflineReady = users.length > 0;
   const badgeColor = isOfflineReady ? colors.success : '#f39c12';
   const badgeBg = isOfflineReady ? colors.successBg : '#fef5e7';
   const badgeLabel = isOfflineReady ? 'Offline Mode Ready' : 'Online Initial Setup Needed';
 
-  // Find selected terminal details
+  // Find selected user details
   const activeStore = stores.find(s => s.id === selectedStoreId);
   const dropdownLabel = activeStore
     ? `${activeStore.store_name}`
@@ -128,7 +128,7 @@ export default function LoginScreen() {
       try {
         const success = await syncTenantByName(tenantName.trim());
         if (success) {
-          Alert.alert('Sync Success', 'Pharmacy branches and terminals synced successfully.');
+          Alert.alert('Sync Success', 'Pharmacy branches and users synced successfully.');
           setView('login');
         } else {
           Alert.alert('Tenant Not Found', 'No pharmacy found with that name. Please check spelling & try again.');
@@ -178,7 +178,7 @@ export default function LoginScreen() {
                 )}
               </TouchableOpacity>
 
-              {terminals.length > 0 && (
+              {users.length > 0 && (
                 <TouchableOpacity
                   style={styles.secondaryButton}
                   activeOpacity={0.8}
@@ -247,23 +247,23 @@ export default function LoginScreen() {
                       onPress={async () => {
                         setLoading(true);
                         try {
-                          const count = await syncTerminals();
+                          const count = await syncUsers();
                           if (count === 0) {
                             Alert.alert(
                               'Sync Failed',
-                              'No terminals found for this tenant. Please register terminals in the admin panel.'
+                              'No users found for this tenant. Please register users in the admin panel.'
                             );
                           } else {
-                            Alert.alert('Sync Complete', `${count} store terminal(s) synced successfully.`);
+                            Alert.alert('Sync Complete', `${count} store user(s) synced successfully.`);
                           }
                         } catch (err) {
-                          Alert.alert('Sync Failed', 'Please connect to the internet to sync terminals.');
+                          Alert.alert('Sync Failed', 'Please connect to the internet to sync users.');
                         } finally {
                           setLoading(false);
                         }
                       }}
                     >
-                      <Text style={styles.syncBtnText}>Tap to Sync Terminals</Text>
+                      <Text style={styles.syncBtnText}>Tap to Sync Users</Text>
                     </TouchableOpacity>
                   </View>
                 ) : (
@@ -324,7 +324,7 @@ export default function LoginScreen() {
               {loading ? (
                 <ActivityIndicator size="small" color="#ffffff" />
               ) : (
-                <Text style={styles.primaryButtonText}>Activate Terminal</Text>
+                <Text style={styles.primaryButtonText}>Activate User</Text>
               )}
             </TouchableOpacity>
 

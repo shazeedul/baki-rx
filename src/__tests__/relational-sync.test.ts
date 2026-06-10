@@ -20,7 +20,7 @@ import { cloudAdapter } from '../services/cloudAdapter';
 vi.mock('../services/cloudAdapter', () => {
   return {
     cloudAdapter: {
-      pullTerminals: vi.fn().mockResolvedValue([
+      pullUsers: vi.fn().mockResolvedValue([
         { id: 'cloud-t1', store_id: 'store-1', tenant_id: 'tenant-1', store_name: 'Store 1', branch_name: 'Branch 1', pin_hash: 'hash1', created_at: '2026-06-01T00:00:00Z' }
       ]),
       pullTenants: vi.fn().mockResolvedValue([
@@ -46,12 +46,12 @@ describe('Relational SyncEngine tests', () => {
     vi.clearAllMocks();
   });
 
-  it('can sync terminals successfully', async () => {
-    await syncEngineInstance.syncTerminals('tenant-1');
-    expect(cloudAdapter.pullTerminals).toHaveBeenCalledWith('tenant-1');
+  it('can sync users successfully', async () => {
+    await syncEngineInstance.syncUsers('tenant-1');
+    expect(cloudAdapter.pullUsers).toHaveBeenCalledWith('tenant-1');
     
     const status = syncEngineInstance.getStatus();
-    expect(status.lastTerminalSyncedAt).not.toBeNull();
+    expect(status.lastUserSyncedAt).not.toBeNull();
   });
 
   it('can sync tenants and stores successfully', async () => {

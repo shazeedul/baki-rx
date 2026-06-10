@@ -7,7 +7,7 @@ try {
 
 // Web mock database implementation
 class WebSqlDatabase {
-  private terminals: any[] = [];
+  private users: any[] = [];
   private customers: any[] = [];
   private ledger_entries: any[] = [];
   private tenants: any[] = [];
@@ -24,7 +24,7 @@ class WebSqlDatabase {
   private loadFromLocalStorage() {
     if (this.isWebEnvironment()) {
       try {
-        this.terminals = JSON.parse(localStorage.getItem('baki_terminals') || '[]');
+        this.users = JSON.parse(localStorage.getItem('baki_users') || '[]');
         this.customers = JSON.parse(localStorage.getItem('baki_customers') || '[]');
         this.ledger_entries = JSON.parse(localStorage.getItem('baki_ledger_entries') || '[]');
         this.tenants = JSON.parse(localStorage.getItem('baki_tenants') || '[]');
@@ -38,7 +38,7 @@ class WebSqlDatabase {
   private saveToLocalStorage() {
     if (this.isWebEnvironment()) {
       try {
-        localStorage.setItem('baki_terminals', JSON.stringify(this.terminals));
+        localStorage.setItem('baki_users', JSON.stringify(this.users));
         localStorage.setItem('baki_customers', JSON.stringify(this.customers));
         localStorage.setItem('baki_ledger_entries', JSON.stringify(this.ledger_entries));
         localStorage.setItem('baki_tenants', JSON.stringify(this.tenants));
@@ -58,15 +58,15 @@ class WebSqlDatabase {
     const query = sql.trim().replace(/\s+/g, ' ');
     const actualParams = Array.isArray(params[0]) ? params[0] : params;
 
-    // 1. Terminals INSERT OR REPLACE
-    if (query.startsWith('INSERT OR REPLACE INTO terminals')) {
+    // 1. Users INSERT OR REPLACE
+    if (query.startsWith('INSERT OR REPLACE INTO users')) {
       const [id, store_id, tenant_id, store_name, branch_name, phone, pin_hash, jwt_cache, created_at] = actualParams;
-      const index = this.terminals.findIndex(t => t.id === id);
+      const index = this.users.findIndex(t => t.id === id);
       const row = { id, store_id, tenant_id, store_name, branch_name, phone, pin_hash, jwt_cache, created_at };
       if (index >= 0) {
-        this.terminals[index] = row;
+        this.users[index] = row;
       } else {
-        this.terminals.push(row);
+        this.users.push(row);
       }
       this.saveToLocalStorage();
       return { lastInsertRowId: 1, changes: 1 };
@@ -187,15 +187,15 @@ class WebSqlDatabase {
     const query = sql.trim().replace(/\s+/g, ' ');
     const actualParams = Array.isArray(params[0]) ? params[0] : params;
 
-    // 0. Select all terminals (no filter)
-    if (query.includes('FROM terminals') && !query.includes('WHERE')) {
-      return this.terminals as T[];
+    // 0. Select all users (no filter)
+    if (query.includes('FROM users') && !query.includes('WHERE')) {
+      return this.users as T[];
     }
 
-    // 1. Select all terminals matching phone and store
-    if (query.includes('FROM terminals WHERE phone = ? AND store_id = ?')) {
+    // 1. Select all users matching phone and store
+    if (query.includes('FROM users WHERE phone = ? AND store_id = ?')) {
       const [phone, store_id] = actualParams;
-      return this.terminals.filter(t => t.phone === phone && t.store_id === store_id) as T[];
+      return this.users.filter(t => t.phone === phone && t.store_id === store_id) as T[];
     }
 
     // 2. Select customers with search
@@ -313,10 +313,10 @@ class WebSqlDatabase {
     const query = sql.trim().replace(/\s+/g, ' ');
     const actualParams = Array.isArray(params[0]) ? params[0] : params;
 
-    // 1. Query local terminals table (retry lookup)
-    if (query.includes('FROM terminals WHERE phone = ? AND store_id = ?')) {
+    // 1. Query local users table (retry lookup)
+    if (query.includes('FROM users WHERE phone = ? AND store_id = ?')) {
       const [phone, store_id] = actualParams;
-      const row = this.terminals.find(t => t.phone === phone && t.store_id === store_id);
+      const row = this.users.find(t => t.phone === phone && t.store_id === store_id);
       return (row as T) || null;
     }
 
@@ -351,7 +351,7 @@ class WebSqlDatabase {
   }
 
   clearDatabase() {
-    this.terminals = [];
+    this.users = [];
     this.customers = [];
     this.ledger_entries = [];
     this.tenants = [];
@@ -422,7 +422,7 @@ export async function initDatabase() {
         created_at  TEXT DEFAULT (datetime('now'))
       );
 
-      CREATE TABLE IF NOT EXISTS terminals (
+      CREATE TABLE IF NOT EXISTS users (
         id          TEXT PRIMARY KEY,
         store_id    TEXT NOT NULL,
         tenant_id   TEXT NOT NULL,

@@ -333,7 +333,7 @@ export default function HomeScreen() {
             <Text style={[styles.branchTitle, { color: theme.text }]}>
               {selectedBranch.split(' (')[0]}
             </Text>
-            <Text style={[styles.terminalSubtitle, { color: theme.textSecondary }]}>Local Credit Ledger Terminal</Text>
+            <Text style={[styles.userSubtitle, { color: theme.textSecondary }]}>Local Credit Ledger User</Text>
           </View>
           <View style={styles.syncedContainer}>
             <SyncedIcon color={statusColor} />
@@ -515,7 +515,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '800',
   },
-  terminalSubtitle: {
+  userSubtitle: {
     fontSize: 11,
     marginTop: 2,
   },

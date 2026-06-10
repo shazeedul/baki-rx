@@ -2,7 +2,7 @@ import NetInfo from '@react-native-community/netinfo';
 
 import { customerQueries } from '../db/queries/customers';
 import { ledgerQueries } from '../db/queries/ledger';
-import { terminalQueries } from '../db/queries/terminals';
+import { userQueries } from '../db/queries/users';
 import { tenantQueries } from '../db/queries/tenants';
 import { storeQueries } from '../db/queries/stores';
 import { cloudAdapter } from '../services/cloudAdapter';
@@ -13,7 +13,7 @@ type SyncCallback = (status: SyncEngineStatus) => void;
 export interface SyncEngineStatus {
   dirtyCount: number;
   lastSyncedAt: string | null;
-  lastTerminalSyncedAt: string | null;
+  lastUserSyncedAt: string | null;
   running: boolean;
 }
 
@@ -25,11 +25,11 @@ export class SyncEngine {
   // Sync state stored in memory (and synced from/to SQLite or storage)
   private dirtyCount = 0;
   private lastSyncedAt: string | null = null;
-  private lastTerminalSyncedAt: string | null = null;
+  private lastUserSyncedAt: string | null = null;
 
   constructor() {
     this.lastSyncedAt = null;
-    this.lastTerminalSyncedAt = null;
+    this.lastUserSyncedAt = null;
   }
 
   // Sourced from environment or passed down
@@ -85,20 +85,20 @@ export class SyncEngine {
     return {
       dirtyCount: this.dirtyCount,
       lastSyncedAt: this.lastSyncedAt,
-      lastTerminalSyncedAt: this.lastTerminalSyncedAt,
+      lastUserSyncedAt: this.lastUserSyncedAt,
       running: this.running
     };
   }
 
-  // Pre-auth fallback sync of terminals
-  async syncTerminals(tenantId: string): Promise<void> {
+  // Pre-auth fallback sync of users
+  async syncUsers(tenantId: string): Promise<void> {
     const isConnected = await this.checkConnection();
     if (!isConnected) {
-      throw new Error('No internet connection to sync terminals.');
+      throw new Error('No internet connection to sync users.');
     }
 
     try {
-      const rows = await cloudAdapter.pullTerminals(tenantId);
+      const rows = await cloudAdapter.pullUsers(tenantId);
       if (rows && rows.length > 0) {
         // Map any field conversions if needed. SQLite table:
         // id, store_id, tenant_id, store_name, branch_name, pin_hash, jwt_cache, created_at
@@ -114,12 +114,12 @@ export class SyncEngine {
           created_at: r.created_at || new Date().toISOString()
         }));
 
-        await terminalQueries.upsertTerminals(mappedRows);
+        await userQueries.upsertUsers(mappedRows);
       }
-      this.lastTerminalSyncedAt = new Date().toISOString();
+      this.lastUserSyncedAt = new Date().toISOString();
       this.emitStatus();
     } catch (err) {
-      console.error('syncTerminals error:', err);
+      console.error('syncUsers error:', err);
       throw err;
     }
   }
