@@ -2,11 +2,11 @@ import NetInfo from '@react-native-community/netinfo';
 
 import { customerQueries } from '../db/queries/customers';
 import { ledgerQueries } from '../db/queries/ledger';
-import { userQueries } from '../db/queries/users';
-import { tenantQueries } from '../db/queries/tenants';
 import { storeQueries } from '../db/queries/stores';
-import { cloudAdapter } from '../services/cloudAdapter';
+import { tenantQueries } from '../db/queries/tenants';
+import { userQueries } from '../db/queries/users';
 import { initDatabase } from '../db/schema';
+import { cloudAdapter } from '../services/cloudAdapter';
 
 type SyncCallback = (status: SyncEngineStatus) => void;
 
@@ -23,7 +23,7 @@ export class SyncEngine {
   private syncing = false;
   private intervalId: any = null;
   private listeners = new Set<SyncCallback>();
-  
+
   // Sync state stored in memory (and synced from/to SQLite or storage)
   private dirtyCount = 0;
   private lastSyncedAt: string | null = null;
@@ -34,28 +34,14 @@ export class SyncEngine {
     this.lastUserSyncedAt = null;
   }
 
-  // Sourced from environment or passed down
-  private getTenantId(): string {
-    return process.env.EXPO_PUBLIC_TENANT_ID || '00000000-0000-0000-0000-000000000000';
-  }
-
   async start(storeId?: string): Promise<void> {
     if (this.running) return;
-    
+
     // Ensure database and tables exist
     await initDatabase();
-    
+
     this.running = true;
     await this.calculateDirtyCount();
-
-    // Start background polling loop for pushing/pulling if storeId is active
-    if (storeId) {
-      this.intervalId = setInterval(() => {
-        this.syncAll(storeId).catch(err => {
-          console.warn('Background sync failed:', err);
-        });
-      }, 15000); // Poll every 15 seconds
-    }
 
     this.emitStatus();
   }
@@ -72,9 +58,9 @@ export class SyncEngine {
 
   async calculateDirtyCount(): Promise<number> {
     try {
-      const dirtyCusts = await customerQueries.getDirtyCustomers();
+      const dirtyCustomers = await customerQueries.getDirtyCustomers();
       const dirtyLedger = await ledgerQueries.getDirtyLedgerEntries();
-      this.dirtyCount = dirtyCusts.length + dirtyLedger.length;
+      this.dirtyCount = dirtyCustomers.length + dirtyLedger.length;
       this.emitStatus();
       return this.dirtyCount;
     } catch (err) {
@@ -217,7 +203,7 @@ export class SyncEngine {
 
       // 2. Pull remote data
       await this.pullRemote(storeId);
-      
+
       this.lastSyncedAt = new Date().toISOString();
       await this.calculateDirtyCount();
     } catch (err) {
@@ -236,25 +222,25 @@ export class SyncEngine {
       console.log('SyncEngine.pushPending: Starting push cycle');
 
       // 1. Fetch dirty customers and push
-      let dirtyCusts;
+      let dirtyCustomers;
       try {
         console.log('SyncEngine.pushPending: Calling getDirtyCustomers');
-        dirtyCusts = await customerQueries.getDirtyCustomers();
-        console.log('SyncEngine.pushPending: getDirtyCustomers returned', dirtyCusts.length, 'records');
+        dirtyCustomers = await customerQueries.getDirtyCustomers();
+        console.log('SyncEngine.pushPending: getDirtyCustomers returned', dirtyCustomers.length, 'records');
       } catch (err: any) {
         console.error('SyncEngine.pushPending: getDirtyCustomers failed with:', err?.message || err);
         throw err;
       }
 
-      if (dirtyCusts.length > 0) {
-        const cloudCusts = dirtyCusts.map(c => ({
+      if (dirtyCustomers.length > 0) {
+        const cloudCusts = dirtyCustomers.map(c => ({
           id: c.id,
           store_id: c.store_id,
           name: c.name,
           phone: c.phone,
           updated_at: c.updated_at
         }));
-        
+
         try {
           console.log('SyncEngine.pushPending: Pushing customers to cloud');
           await cloudAdapter.upsertCustomers(cloudCusts);
@@ -263,7 +249,7 @@ export class SyncEngine {
           throw err;
         }
 
-        for (const c of dirtyCusts) {
+        for (const c of dirtyCustomers) {
           try {
             console.log('SyncEngine.pushPending: Marking customer synced:', c.id);
             await customerQueries.markSynced(c.id);
@@ -296,7 +282,7 @@ export class SyncEngine {
           note: le.note,
           created_at: le.created_at
         }));
-        
+
         try {
           console.log('SyncEngine.pushPending: Pushing ledger entries to cloud');
           await cloudAdapter.upsertLedgerEntries(cloudLedger);
@@ -337,13 +323,13 @@ export class SyncEngine {
       const sinceDate = this.lastSyncedAt || new Date(0).toISOString();
 
       // 1. Pull remote customers
-      const remoteCusts = await cloudAdapter.pullCustomersSince(storeId, sinceDate);
-      for (const rc of remoteCusts) {
+      const remoteCustomers = await cloudAdapter.pullCustomersSince(storeId, sinceDate);
+      for (const rc of remoteCustomers) {
         // Read local copy to apply Last-Write-Wins (Section 12)
         const local = await customerQueries.getCustomerById(storeId, rc.id);
         const incomingTime = new Date(rc.updated_at).getTime();
         const localTime = local ? new Date(local.updated_at).getTime() : 0;
-        
+
         if (!local || incomingTime >= localTime) {
           await customerQueries.upsertCustomer({
             id: rc.id,

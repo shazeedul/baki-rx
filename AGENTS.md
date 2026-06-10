@@ -134,8 +134,6 @@ Query local users table:
 // src/sync/SyncEngine.ts
  
 async syncUsers(tenantId: string): Promise<void> {
-  // tenantId sourced from EXPO_PUBLIC_TENANT_ID (baked into the app build)
-  // — available before auth, required for the pre-auth user pull
   const rows = await cloudAdapter.pullUsers(tenantId);
   if (!rows || rows.length === 0) return;
  

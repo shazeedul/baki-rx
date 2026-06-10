@@ -178,16 +178,14 @@ export default function LoginScreen() {
                 )}
               </TouchableOpacity>
 
-              {users.length > 0 && (
-                <TouchableOpacity
-                  style={styles.secondaryButton}
-                  activeOpacity={0.8}
-                  onPress={() => setView('login')}
-                  disabled={syncingTenant}
-                >
-                  <Text style={styles.secondaryButtonText}>Back to Login</Text>
-                </TouchableOpacity>
-              )}
+              <TouchableOpacity
+                style={styles.secondaryButton}
+                activeOpacity={0.8}
+                onPress={() => setView('login')}
+                disabled={syncingTenant}
+              >
+                <Text style={styles.secondaryButtonText}>Back to Login</Text>
+              </TouchableOpacity>
             </View>
 
             <View style={styles.footer}>

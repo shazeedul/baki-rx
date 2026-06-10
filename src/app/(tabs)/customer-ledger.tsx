@@ -20,6 +20,7 @@ import { useSync } from '@/context/sync-context';
 import { customerQueries, CustomerRow } from '@/db/queries/customers';
 import { LedgerEntryRow, ledgerQueries } from '@/db/queries/ledger';
 import { useTheme } from '@/hooks/use-theme';
+import { syncEngineInstance } from '@/sync/SyncEngine';
 
 const WhatsAppIcon = () => (
   <View style={styles.whatsappLogoContainer}>
@@ -91,6 +92,9 @@ export default function CustomerLedgerScreen() {
                 note: 'Cash collection payment',
                 is_dirty: 1 // mandatory dirty flag
               });
+
+              // Recalculate dirty count to trigger status updates
+              await syncEngineInstance.calculateDirtyCount();
 
               Alert.alert('Success', `Collected ৳${amount.toLocaleString()}! (Offline Safe)`);
 

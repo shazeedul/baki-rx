@@ -1,5 +1,5 @@
 import * as Crypto from 'expo-crypto';
-import { Redirect, useRouter } from 'expo-router';
+import { Redirect, useRouter, useFocusEffect } from 'expo-router';
 import { RefreshCw } from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -69,9 +69,11 @@ export default function HomeScreen() {
   }, [storeId]);
 
   // Initial Load and Auto-Refresh on focus/actions
-  useEffect(() => {
-    loadDashboardData();
-  }, [loadDashboardData, status.dirtyCount]);
+  useFocusEffect(
+    useCallback(() => {
+      loadDashboardData();
+    }, [loadDashboardData, status.dirtyCount])
+  );
 
   // Filter defaulters list locally by search query
   const filteredDefaulters = useMemo(() => {

@@ -10,7 +10,7 @@ import { supabase } from '../sync/supabase-client';
 import { syncEngineInstance } from '../sync/SyncEngine';
 
 import { cloudAdapter } from '../services/cloudAdapter';
-import { verifyPin, simpleSHA256, LOCAL_CRYPT_SALT } from '../services/crypto';
+import { LOCAL_CRYPT_SALT, simpleSHA256, verifyPin } from '../services/crypto';
 
 type AuthContextType = {
   isLoggedIn: boolean;
@@ -39,7 +39,7 @@ async function isNetworkConnected(): Promise<boolean> {
   return !!state.isConnected;
 }
 
-async function getActiveTenantId(): Promise<string> {
+async function getActiveTenantId(): Promise<string | undefined> {
   try {
     const list = await tenantQueries.getAllTenants();
     if (list && list.length > 0) {
@@ -48,7 +48,6 @@ async function getActiveTenantId(): Promise<string> {
   } catch (e) {
     console.warn('Failed to read local tenants:', e);
   }
-  return process.env.EXPO_PUBLIC_TENANT_ID || '00000000-0000-0000-0000-000000000000';
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -208,7 +207,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const syncTenantByName = async (tenantName: string): Promise<boolean> => {
     try {
       console.log('syncTenantByName: starting sync for', tenantName);
-      
+
       // Ensure database is initialized and migrated
       try {
         await initDatabase();

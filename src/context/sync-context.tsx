@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import NetInfo from '@react-native-community/netinfo';
 import { syncEngineInstance, SyncEngine, SyncEngineStatus } from '../sync/SyncEngine';
 import { useAuth } from './auth-context';
 
@@ -34,33 +33,7 @@ export const SyncProvider: React.FC<{ children?: React.ReactNode }> = ({ childre
     };
   }, [storeId]);
 
-  // 2. Trigger Initial Sync on Login
-  useEffect(() => {
-    if (isLoggedIn && storeId) {
-      // Immediately run sync cycle upon login activation
-      syncEngineInstance.syncAll(storeId).catch((e) => {
-        console.warn('Initial background sync failed:', e);
-      });
-    }
-  }, [isLoggedIn, storeId]);
 
-  // 3. Setup Network Listener to trigger Sync Loops on Connection Restored
-  useEffect(() => {
-    if (!isLoggedIn || !storeId) return;
-
-    const unsubscribe = NetInfo.addEventListener((state) => {
-      if (state.isConnected) {
-        console.log('SyncContext: Network connected, triggering push/pull');
-        syncEngineInstance.syncAll(storeId).catch((e) => {
-          console.warn('Sync push/pull failed on connection restore:', e);
-        });
-      }
-    });
-
-    return () => {
-      unsubscribe();
-    };
-  }, [isLoggedIn, storeId]);
 
   const syncAll = async () => {
     if (storeId) {

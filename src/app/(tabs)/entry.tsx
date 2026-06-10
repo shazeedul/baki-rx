@@ -4,6 +4,7 @@ import { colors, radius, spacing } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
 import { CustomerRow } from '@/db/queries/customers';
 import { ledgerQueries } from '@/db/queries/ledger';
+import { syncEngineInstance } from '@/sync/SyncEngine';
 import * as Crypto from 'expo-crypto';
 import { Redirect, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
@@ -66,6 +67,9 @@ export default function NewSaleEntryScreen() {
         note: note.trim() || null,
         is_dirty: 1 // mandatory dirty flag
       });
+
+      // Recalculate dirty count to trigger dashboard refresh
+      await syncEngineInstance.calculateDirtyCount();
 
       Alert.alert('Saved', 'Baki entry recorded successfully! (Offline Safe)');
       router.push('/(tabs)/home');
