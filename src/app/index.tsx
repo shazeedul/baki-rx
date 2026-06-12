@@ -1,21 +1,17 @@
-import { Redirect } from 'expo-router';
-import { useAuth } from '../context/auth-context';
-import { ActivityIndicator, View } from 'react-native';
+import { Text, View, StyleSheet } from "react-native";
 
-export default function IndexGatekeeper() {
-  const { isLoggedIn, isLoading } = useAuth();
-
-  if (isLoading) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" />
-      </View>
-    );
-  }
-
-  if (isLoggedIn) {
-    return <Redirect href="/(tabs)/home" />;
-  }
-
-  return <Redirect href="/(auth)/login" />;
+export default function Index() {
+  return (
+    <View style={styles.container}>
+      <Text>Edit src/app/index.tsx to edit this screen.</Text>
+    </View>
+  );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+});
