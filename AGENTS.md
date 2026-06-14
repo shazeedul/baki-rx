@@ -62,7 +62,7 @@ User action → Write SQLite (is_dirty=1) → Update UI → SyncEngine in backgr
 4. If not found + online: `await syncUsers()` → retry → login
 5. If not found + offline: error
 
-**Delta Math:** Never sync balances. Sync only transaction deltas (`entry_type`: 'due'/'payment', `amount`). Balance = SUM(due) - SUM(payment), computed at query time.
+**Delta Math:** Never sync balances. Sync only transaction deltas (`entry_type`: 'sale'/'collection', `amount`). Balance = SUM(sale) - SUM(collection), computed at query time.
 
 ---
 
@@ -109,14 +109,17 @@ CREATE TABLE customers (
 
 -- Ledger (append-only, is_dirty for sync)
 CREATE TABLE ledger_entries (
-  id TEXT PRIMARY KEY,
-  store_id TEXT NOT NULL,
-  customer_id TEXT NOT NULL,
-  entry_type TEXT CHECK(entry_type IN ('due', 'payment')),
-  amount REAL NOT NULL,
-  note TEXT,
-  is_dirty INTEGER DEFAULT 1,
-  created_at TEXT DEFAULT (datetime('now'))
+  id               TEXT PRIMARY KEY, 
+  store_id         TEXT NOT NULL,
+  customer_id      TEXT NOT NULL REFERENCES customers(id),
+  entry_type       TEXT NOT NULL CHECK(entry_type IN ('sale','collection')),
+  total_amount     REAL NOT NULL,
+  paid_amount      REAL NOT NULL DEFAULT 0,
+  due_amount       REAL GENERATED ALWAYS AS (total_amount - paid_amount) VIRTUAL,
+  note             TEXT,
+  transaction_date TEXT NOT NULL,       -- Clerk's chosen date (e.g., '2026-06-10')
+  is_dirty         INTEGER DEFAULT 1,
+  created_at       TEXT DEFAULT (datetime('now')) -- Strict system log time
 );
 
 -- Indexes on all tables (store_id, dirty, created_at)
@@ -155,7 +158,7 @@ async signIn(phone, pin) → cloudAdapter.signIn(phone, pin)
 | Screen | Purpose | Key Data |
 |---|---|---|
 | **Login** | User + PIN + branch | Local users lookup → verify bcrypt hash → sync fallback if offline |
-| **Home** | Dashboard | SUM(due) - SUM(payment), today's collections, top 20 defaulters |
+| **Home** | Dashboard | SUM(sale) - SUM(collection), today's collections, top 20 defaulters |
 | **Entry** | New transaction | Customer search (paginated, debounced), amount, entry_type, auto-calc balance |
 | **Report** | Ledger filtered | Date, customer, type, sort; paginated; summary totals |
 
@@ -247,7 +250,7 @@ When switching to custom backend:
 3. **Parameterized SQL.** No string interpolation. Use `executeSqlAsync(sql, [params])`.
 4. **`store_id` mandatory** on every `customers`/`ledger_entries` query.
 5. **Never hardcode** `store_id`, `tenant_id`, branch names. Read from `authStore`.
-6. **Balance always computed.** Never store raw balance. Use `SUM(due) - SUM(payment)` at query time.
+6. **Balance always computed.** Never store raw balance. Use `SUM(sale) - SUM(collection)` at query time.
 7. **`cloudAdapter.ts` = API boundary.** Never call `supabase` elsewhere.
 8. **Drawers don't block.** Close in-place, refresh parent list.
 9. **Customer search:** debounce 300ms, paginate 20 rows.
