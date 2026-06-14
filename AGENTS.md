@@ -71,6 +71,13 @@ User action → Write SQLite (is_dirty=1) → Update UI → SyncEngine in backgr
 ### 5a. SQLite (Local)
 
 ```sql
+-- Tenants 
+CREATE TABLE tenants (
+  id            TEXT PRIMARY KEY,   -- UUID matching cloud tenants.id
+  business_name TEXT NOT NULL,
+  created_at    TEXT DEFAULT (datetime('now'))
+);
+
 -- Users (synced from cloud, no is_dirty)
 CREATE TABLE users (
   id TEXT PRIMARY KEY,
