@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "BakiRx",
-    "slug": "BakiRx",
+    "slug": "bakirx",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -34,11 +34,19 @@
             "imageWidth": 76
           }
         }
-      ]
+      ],
+      "expo-sqlite"
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "3c6d07a4-cb57-4db1-93d0-9a6383d14e50"
+      }
+    },
+    "owner": "dev-wizard"
   }
 }
