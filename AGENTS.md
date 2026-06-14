@@ -4,24 +4,28 @@
 
 ---
 
-## 1. Quick Identity
+## 1. Project Identity
 
-- **App:** Baki Rx Ledger | **Type:** Multi-tenant, local-first SaaS | **Platform:** React Native/Expo/Android
-- **Domain:** Pharmacy credit (due) management | **Core:** 100% offline-capable
+- **App Name:** Baki Rx Ledger
+- **Type:** Multi-tenant, local-first SaaS
+- **Platform:** Android (React Native / Expo SDK)
+- **Domain:** Pharmacy credit (baki/due) management across multiple branch users
+- **Core Constraint:** The app must function 100% offline. The internet is optional, never a dependency.
 
 ---
 
 ## 2. Tech Stack
 
-| Layer | Tech |
+| Layer | Technology |
 |---|---|
-| **Framework** | React Native (Expo) |
-| **Local DB** | `expo-sqlite` |
+| **Framework** | React Native (Expo SDK, targeting Android) |
+| **Local DB** | `expo-sqlite` (Primary execution layer) |
 | **Cloud DB** | Supabase (PostgreSQL) |
-| **Auth** | Supabase Auth (`auth.users`) + local bcrypt lookup (offline) |
-| **Network** | `@react-native-community/netinfo` |
-| **State** | Zustand |
-| **Navigation** | React Navigation v6 |
+| **Auth** | Supabase Auth (`auth.users`) + Local Bcrypt matching (Offline) |
+| **Network Detection** | `@react-native-community/netinfo` |
+| **HTTP Client** | Supabase JS SDK — Swappable with native `fetch`/`axios` |
+| **State Management** | Zustand (Global persistence core) |
+| **Navigation** | React Navigation v6 (Stack + Drawer + Bottom Tab) |
 
 ---
 
@@ -29,40 +33,121 @@
 
 ```
 /
-├── app/
-│   ├── (auth)/login.tsx
-│   ├── (tabs)/index.tsx (Home), entry.tsx, report.tsx
+├── app/                        # Expo Router Navigation Architecture
+│   ├── (auth)/
+│   │   └── login.tsx           # Multi-step isolated tenant auth context
+│   ├── (tabs)/
+│   │   ├── index.tsx           # Home Dashboard & Metric Hub
+│   │   ├── entry.tsx           # Transaction Ledger Writer
+│   │   └── report.tsx          # Advanced filtered ledger histories
 │   └── _layout.tsx
 ├── src/
-│   ├── components/ (AddCustomerDrawer, CustomerSearchDropdown, etc.)
-│   ├── db/ (schema.ts, migrations/, queries/)
-│   ├── sync/ (SyncEngine.ts)
-│   ├── store/ (authStore.ts, syncStore.ts)
-│   ├── services/ (cloudAdapter.ts)
-│   └── constants/ (theme.ts)
-├── .env (never commit) & .env.example
-└── AGENTS.md
+│   ├── components/             # Global modular components
+│   │   ├── AddCustomerDrawer.tsx
+│   │   ├── CustomerSearchDropdown.tsx
+│   │   └── SyncStatusBadge.tsx
+│   ├── db/
+│   │   ├── schema.ts           # SQLite schema generation scripts
+│   │   ├── migrations/         # Upward/Downward version tracking files
+│   │   └── queries/            # Isolated database statement wrappers
+│   ├── sync/
+│   │   └── SyncEngine.ts       # Non-blocking state replication worker
+│   ├── store/
+│   │   ├── authStore.ts        # Session data: token, user_id, store_id, tenant_id
+│   │   └── syncStore.ts        # Performance state: metrics, timing, item counts
+│   ├── services/
+│   │   └── cloudAdapter.ts     # Abstraction barrier separating Supabase SDK
+│   └── constants/
+│       └── theme.ts            # Layout parameters and style palette tokens
+├── .env                        # Non-committed environment config values
+├── .env.example                # Safe version tracking template indicators
+└── AGENTS.md                   # This instruction file
 ```
 
 ---
 
-## 4. Architecture
+## 4. Architecture: Local-First Hybrid
 
-**Golden Rule:** UI never awaits network. All reads from local SQLite.
+### The Golden Rule
+**The UI never awaits a network response to render.** All application data reads target the local SQLite storage engine exclusively.
+
+### Non-Blocking Write Cycle
 
 **Write Flow:**
 ```
-User action → Write SQLite (is_dirty=1) → Update UI → SyncEngine in background → Push cloud → Reset is_dirty=0
+User Action
+→ Write mutation directly to SQLite with is_dirty = 1
+→ Update visual interface states instantly (0ms network delay)
+→ SyncEngine background worker picks up rows marking active dirty flags
+→ Push delta payloads up to cloud environment targets
+→ On verified 200 OK receipt: flip target row is_dirty values back to 0
 ```
 
-**Login Flow (Lazy Sync):**
-1. User enters mobile + PIN + branch
-2. Query local `users` table
-3. If found: verify bcrypt hash → login (offline OK)
-4. If not found + online: `await syncUsers()` → retry → login
-5. If not found + offline: error
+### Authentication & Multi-Store Flow
+Identity records rely securely upon Supabase Auth (`auth.users`), but map to public schemas where a database trigger replicates profiles down into data streams. This facilitates disconnected credentials evaluations completely offline.
 
-**Delta Math:** Never sync balances. Sync only transaction deltas (`entry_type`: 'sale'/'collection', `amount`). Balance = SUM(sale) - SUM(collection), computed at query time.
+Step 1: User selects Tenant from dropdown (populated from locally synced tenants)
+│
+▼
+Step 2: User enters Mobile Number + Password/PIN
+│
+▼
+Query local SQLite users table:
+SELECT * FROM users WHERE tenant_id = ? AND phone = ?
+│
+┌────────────────┴────────────────┐
+▼                                 ▼
+[ ROW FOUND ]                   [ ROW NOT FOUND ]
+│                                 │
+Verify Password/PIN offline against     Show error: "Account not found
+local password_hash (Bcrypt format)     for this tenant on this device."
+│
+┌─────┴──────────────┐
+▼                    ▼
+[ MATCH ]         [ MISMATCH ] → Show "Incorrect Password" error
+│
+▼
+Session Initialization:
+1. Read user.default_store_id as the primary active session
+
+2. Populate authStore:
+{
+tenant_id: user.tenant_id,
+store_id:  user.default_store_id,
+user_id:   user.id
+}
+
+3. Direct UI routing to Home Dashboard immediately (0ms network delay)
+
+4. Async: If online, background authenticates against Supabase Auth
+via phone + password to acquire a fresh JWT token for the session cache.
+
+#### Multi-Store Session Flipping
+Because access configurations map through the local `user_stores` join table, users switch active branches inside application navigation drawers without triggering secondary logout actions. Overwriting `authStore.store_id` updates all localized transactional filters instantly.
+
+#### `SyncEngine.syncUsers()` Protocol
+```typescript
+async syncUsers(tenantId: string): Promise<void> {
+  const { users, userStores } = await cloudAdapter.pullTenantRoster(tenantId);
+  if (!users || users.length === 0) return;
+
+  await db.transaction(async (tx) => {
+    // Overwrite profile details unconditionally during bootstrap routines
+    await tx.upsertUsers(users);
+    await tx.clearAndRebuildUserStores(tenantId, userStores);
+  });
+
+  syncStore.setState({ lastUserSyncedAt: new Date().toISOString() });
+}
+```
+
+### Delta Math Tracking
+Never push computed summary values across network layers. Sync raw transactional entries independently:
+```json
+{ "entry_type": "sale", "total_amount": 1500 }
+{ "entry_type": "collection", "paid_amount": 500 }
+```
+Balances compute responsively inside local queries by aggregating matching delta paths.
 
 ---
 
@@ -71,70 +156,166 @@ User action → Write SQLite (is_dirty=1) → Update UI → SyncEngine in backgr
 ### 5a. SQLite (Local)
 
 ```sql
--- Tenants 
 CREATE TABLE tenants (
-  id            TEXT PRIMARY KEY,   -- UUID matching cloud tenants.id
+  id            TEXT PRIMARY KEY,   -- Cloud-matched UUID string identifier
   business_name TEXT NOT NULL,
   created_at    TEXT DEFAULT (datetime('now'))
 );
 
--- Users (synced from cloud, no is_dirty)
 CREATE TABLE users (
-  id TEXT PRIMARY KEY,
-  tenant_id TEXT NOT NULL,
-  phone TEXT NOT NULL,
-  password_hash TEXT NOT NULL,        -- Bcrypt for offline PIN auth
-  default_store_id TEXT NOT NULL,
-  jwt_cache TEXT,
-  created_at TEXT DEFAULT (datetime('now'))
+  id               TEXT PRIMARY KEY,    -- Matches cloud auth.users structural UUID
+  tenant_id        TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  phone            TEXT NOT NULL,
+  password_hash    TEXT NOT NULL,       -- Replicated Bcrypt check string
+  default_store_id TEXT NOT NULL,       -- Starting baseline store assignment
+  jwt_cache        TEXT,                -- Scoped token fallback storage
+  created_at       TEXT DEFAULT (datetime('now'))
 );
 
--- User can access multiple stores
 CREATE TABLE user_stores (
-  user_id TEXT NOT NULL REFERENCES users(id),
-  store_id TEXT NOT NULL,
+  user_id   TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  store_id  TEXT NOT NULL,
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   PRIMARY KEY (user_id, store_id)
 );
 
--- Customers (is_dirty for sync)
 CREATE TABLE customers (
-  id TEXT PRIMARY KEY,
-  store_id TEXT NOT NULL,
-  name TEXT NOT NULL,
-  phone TEXT NOT NULL,
-  is_dirty INTEGER DEFAULT 1,
-  created_at TEXT DEFAULT (datetime('now')),
-  updated_at TEXT DEFAULT (datetime('now'))
+  id          TEXT PRIMARY KEY,
+  store_id    TEXT NOT NULL,
+  name        TEXT NOT NULL,
+  phone       TEXT NOT NULL,
+  is_dirty    INTEGER DEFAULT 1,
+  created_at  TEXT DEFAULT (datetime('now')),
+  updated_at  TEXT DEFAULT (datetime('now'))
 );
 
--- Ledger (append-only, is_dirty for sync)
 CREATE TABLE ledger_entries (
   id               TEXT PRIMARY KEY, 
   store_id         TEXT NOT NULL,
-  customer_id      TEXT NOT NULL REFERENCES customers(id),
+  customer_id      TEXT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
   entry_type       TEXT NOT NULL CHECK(entry_type IN ('sale','collection')),
   total_amount     REAL NOT NULL,
   paid_amount      REAL NOT NULL DEFAULT 0,
   due_amount       REAL GENERATED ALWAYS AS (total_amount - paid_amount) VIRTUAL,
   note             TEXT,
-  transaction_date TEXT NOT NULL,       -- Clerk's chosen date (e.g., '2026-06-10')
+  transaction_date TEXT NOT NULL,       -- User picked operational window (YYYY-MM-DD)
   is_dirty         INTEGER DEFAULT 1,
-  created_at       TEXT DEFAULT (datetime('now')) -- Strict system log time
+  created_at       TEXT DEFAULT (datetime('now')) -- Absolute structural machine log time
 );
 
--- Indexes on all tables (store_id, dirty, created_at)
+CREATE INDEX idx_users_lookup       ON users(tenant_id, phone);
+CREATE INDEX idx_user_stores_map    ON user_stores(user_id);
+CREATE INDEX idx_customers_branch   ON customers(store_id);
+CREATE INDEX idx_ledger_sync        ON ledger_entries(store_id, is_dirty);
+CREATE INDEX idx_ledger_timeline    ON ledger_entries(customer_id, transaction_date DESC);
 ```
 
 ### 5b. Supabase (Cloud)
 
-**Tables mirror SQLite.** Clerks via JWT; RLS on `store_id` claims. Users/user_stores read-only (no clerk write).
+```sql
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
-**Key RLS:**
-- `customers`: SELECT/INSERT/UPDATE by `store_id`
-- `ledger_entries`: SELECT/INSERT by `store_id`
-- `users`, `user_stores`: SELECT only (service-role provisions)
+CREATE TABLE public.tenants (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  business_name TEXT NOT NULL,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 
-**JWT metadata:** `{ tenant_id, store_id, user_id }`
+CREATE TABLE public.stores (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id   UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  store_name  TEXT NOT NULL,
+  location    TEXT,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+ALTER TABLE public.stores ENABLE ROW LEVEL SECURITY;
+CREATE POLICY stores_tenant_isolation ON public.stores
+  FOR SELECT USING (tenant_id = (auth.jwt() -> 'user_metadata' ->> 'tenant_id')::uuid);
+
+CREATE TABLE public.users (
+  id               UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  tenant_id        UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  phone            TEXT NOT NULL,
+  password_hash    TEXT NOT NULL,
+  default_store_id UUID NOT NULL REFERENCES public.stores(id) ON DELETE RESTRICT,
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT       unique_tenant_phone UNIQUE (tenant_id, phone)
+);
+
+CREATE TABLE public.user_stores (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id     UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  store_id    UUID NOT NULL REFERENCES public.stores(id) ON DELETE CASCADE,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT  unique_user_store UNIQUE (user_id, store_id)
+);
+
+ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.user_stores ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY users_tenant_isolation ON public.users
+  FOR SELECT USING (tenant_id = (auth.jwt() -> 'user_metadata' ->> 'tenant_id')::uuid);
+
+CREATE POLICY user_stores_tenant_isolation ON public.user_stores
+  FOR SELECT USING (store_id IN (
+    SELECT id FROM public.stores WHERE tenant_id = (auth.jwt() -> 'user_metadata' ->> 'tenant_id')::uuid
+  ));
+
+CREATE TABLE public.customers (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  store_id    UUID NOT NULL REFERENCES public.stores(id) ON DELETE CASCADE,
+  name        TEXT NOT NULL,
+  phone       TEXT NOT NULL,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+ALTER TABLE public.customers ENABLE ROW LEVEL SECURITY;
+CREATE POLICY customers_store_isolation ON public.customers
+  USING (store_id = (auth.jwt() -> 'user_metadata' ->> 'store_id')::uuid);
+
+CREATE TABLE public.ledger_entries (
+  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  store_id         UUID NOT NULL REFERENCES public.stores(id) ON DELETE CASCADE,
+  customer_id      UUID NOT NULL REFERENCES public.customers(id) ON DELETE CASCADE,
+  entry_type       TEXT NOT NULL CHECK (entry_type IN ('sale', 'collection')),
+  total_amount     NUMERIC(12, 2) NOT NULL,
+  paid_amount      NUMERIC(12, 2) NOT NULL DEFAULT 0,
+  note             TEXT,
+  transaction_date DATE NOT NULL,
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+ALTER TABLE public.ledger_entries ENABLE ROW LEVEL SECURITY;
+CREATE POLICY ledger_store_isolation ON public.ledger_entries
+  USING (store_id = (auth.jwt() -> 'user_metadata' ->> 'store_id')::uuid);
+
+-- AUTOMATED STORAGE MIRROR FROM INTERNALS SCHEMA PILES
+CREATE OR REPLACE FUNCTION public.handle_auth_user_sync()
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO public.users (id, tenant_id, phone, password_hash, default_store_id, created_at)
+  VALUES (
+    NEW.id,
+    (NEW.raw_user_meta_data ->> 'tenant_id')::uuid,
+    NEW.phone,
+    NEW.encrypted_password,
+    (NEW.raw_user_meta_data ->> 'default_store_id')::uuid,
+    NEW.created_at
+  )
+  ON CONFLICT (id) DO UPDATE SET
+    phone = EXCLUDED.phone,
+    password_hash = EXCLUDED.password_hash,
+    default_store_id = EXCLUDED.default_store_id;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE TRIGGER on_auth_user_created_or_updated
+  AFTER INSERT OR UPDATE OF encrypted_password, phone, raw_user_meta_data ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_auth_user_sync();
+```
 
 ---
 
@@ -142,7 +323,8 @@ CREATE TABLE ledger_entries (
 
 **File:** `src/services/cloudAdapter.ts`
 
-Only file that imports Supabase. Everything routes through it for swappability to custom API.
+Structural Rule: No operational file outside this layout component can mention or parse the raw supabase instantiation object.
+Payload Interception: Remapping network transport actions away from Supabase toward customized REST structures is managed entirely inside this layer.
 
 ```typescript
 // Pseudo
@@ -153,14 +335,25 @@ async signIn(phone, pin) → cloudAdapter.signIn(phone, pin)
 
 ---
 
-## 7. Screens
+## 7. App Screens & Component Contracts
 
-| Screen | Purpose | Key Data |
-|---|---|---|
-| **Login** | User + PIN + branch | Local users lookup → verify bcrypt hash → sync fallback if offline |
-| **Home** | Dashboard | SUM(sale) - SUM(collection), today's collections, top 20 defaulters |
-| **Entry** | New transaction | Customer search (paginated, debounced), amount, entry_type, auto-calc balance |
-| **Report** | Ledger filtered | Date, customer, type, sort; paginated; summary totals |
+7a. Login Screen — (auth)/login.tsx
+Provides sequential organizational scope gating to credential fields.
+Tenant Selector Dropdown: Pulls local tenants metadata records to display brand groups. Gated input fields block activity until this contains a target ID value.
+Mobile Input: Targets specific country number parsing boundaries. Matches keyboardType="phone-pad".
+Password Input: Uses masked security input fields (secureTextEntry). Evaluates plain strings against Bcrypt values matching the local SQLite device records cache instantly.
+
+7b. Home / Dashboard — (tabs)/index.tsx
+Displays aggregations derived from raw transactional items inside local records: SUM(total_amount) - SUM(paid_amount).
+Renders the "Top 20 Defaulters" list responsively by joining tables locally.
+
+7c. Transaction Entry Sheet — (tabs)/entry.tsx
+Implements CustomerSearchDropdown querying local data via parameterized filters, with input entries debounced by 300ms.
+Displays responsive due amounts using calculated fields: due = totalBill - paidAmount.
+
+7d. Report Filter Matrix — (tabs)/report.tsx
+Implements scrolling list managers handling multi-axis sorting matrices (Date Range, Customer filter, Entry Types).
+Interrogates transactional dates (transaction_date) for business visualization logic while ignoring system creation sync timestamps.
 
 **AddCustomerDrawer:** Bottom sheet, name + phone, insert with `is_dirty=1`.
 
@@ -256,3 +449,4 @@ When switching to custom backend:
 9. **Customer search:** debounce 300ms, paginate 20 rows.
 10. **`is_dirty = 1` on every local write** before function returns.
 11. **Terminal/User sync is login fallback.** Only sync if local lookup fails AND online. If offline + not found, error.
+12. **Never alter `created_at` for backdated transactions.** The `created_at` timestamp in both SQLite and Supabase must reflect real-world insertion time. Use the explicit `transaction_date` field for any custom, future, or backdated user selections. Cloud delta pulls rely entirely on chronological server-side `created_at` ordering.
