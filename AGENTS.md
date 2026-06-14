@@ -31,18 +31,28 @@
 
 ## 3. Repository Structure
 
-```
+Aligned with official [Expo Folder Structure Best Practices](https://expo.dev/blog/expo-app-folder-structure-best-practices):
+
+```text
 /
-├── app/                        # Expo Router Navigation Architecture
-│   ├── (auth)/
-│   │   └── login.tsx           # Multi-step isolated tenant auth context
-│   ├── (tabs)/
-│   │   ├── index.tsx           # Home Dashboard & Metric Hub
-│   │   ├── entry.tsx           # Transaction Ledger Writer
-│   │   └── report.tsx          # Advanced filtered ledger histories
-│   └── _layout.tsx
 ├── src/
-│   ├── components/             # Global modular components
+│   ├── app/                    # Expo Router minimal entry points ONLY
+│   │   ├── _layout.tsx         # Root layout (Auth guarding & primary navigation wrapper)
+│   │   ├── index.tsx           # Imports and returns Home screen
+│   │   ├── login.tsx           # Imports and returns Login screen
+│   │   ├── entry.tsx           # Imports and returns Entry screen
+│   │   └── report.tsx          # Imports and returns Report screen
+│   ├── screens/                # UI Screens (isolates components from router)
+│   │   ├── home/
+│   │   │   ├── index.tsx
+│   │   │   └── components/     # Home-specific colocated components
+│   │   ├── login/
+│   │   │   └── index.tsx
+│   │   ├── entry/
+│   │   │   └── index.tsx
+│   │   └── report/
+│   │       └── index.tsx
+│   ├── components/             # Reusable global UI components
 │   │   ├── AddCustomerDrawer.tsx
 │   │   ├── CustomerSearchDropdown.tsx
 │   │   └── SyncStatusBadge.tsx
@@ -61,6 +71,7 @@
 │       └── theme.ts            # Layout parameters and style palette tokens
 ├── .env                        # Non-committed environment config values
 ├── .env.example                # Safe version tracking template indicators
+├── package.json
 └── AGENTS.md                   # This instruction file
 ```
 
@@ -86,41 +97,40 @@ User Action
 ### Authentication & Multi-Store Flow
 Identity records rely securely upon Supabase Auth (`auth.users`), but map to public schemas where a database trigger replicates profiles down into data streams. This facilitates disconnected credentials evaluations completely offline.
 
+```plaintext
 Step 1: User selects Tenant from dropdown (populated from locally synced tenants)
-│
-▼
+                         │
+                         ▼
 Step 2: User enters Mobile Number + Password/PIN
-│
-▼
-Query local SQLite users table:
-SELECT * FROM users WHERE tenant_id = ? AND phone = ?
-│
-┌────────────────┴────────────────┐
-▼                                 ▼
-[ ROW FOUND ]                   [ ROW NOT FOUND ]
-│                                 │
-Verify Password/PIN offline against     Show error: "Account not found
-local password_hash (Bcrypt format)     for this tenant on this device."
-│
-┌─────┴──────────────┐
-▼                    ▼
+                         │
+                         ▼
+             Query local SQLite users table:
+    SELECT * FROM users WHERE tenant_id = ? AND phone = ?
+                         │
+        ┌────────────────┴────────────────┐
+        ▼                                 ▼
+   [ ROW FOUND ]                   [ ROW NOT FOUND ]
+        │                                 │
+  Verify Password/PIN offline against     Show error: "Account not found 
+  local password_hash (Bcrypt format)     for this tenant on this device."
+        │
+  ┌─────┴──────────────┐
+  ▼                    ▼
 [ MATCH ]         [ MISMATCH ] → Show "Incorrect Password" error
-│
-▼
+  │
+  ▼
 Session Initialization:
 1. Read user.default_store_id as the primary active session
-
 2. Populate authStore:
-{
-tenant_id: user.tenant_id,
-store_id:  user.default_store_id,
-user_id:   user.id
-}
-
+   {
+     tenant_id: user.tenant_id,
+     store_id:  user.default_store_id, 
+     user_id:   user.id
+   }
 3. Direct UI routing to Home Dashboard immediately (0ms network delay)
-
-4. Async: If online, background authenticates against Supabase Auth
-via phone + password to acquire a fresh JWT token for the session cache.
+4. Async: If online, background authenticates against Supabase Auth 
+   via phone + password to acquire a fresh JWT token for the session cache.
+```
 
 #### Multi-Store Session Flipping
 Because access configurations map through the local `user_stores` join table, users switch active branches inside application navigation drawers without triggering secondary logout actions. Overwriting `authStore.store_id` updates all localized transactional filters instantly.
@@ -450,3 +460,4 @@ When switching to custom backend:
 10. **`is_dirty = 1` on every local write** before function returns.
 11. **Terminal/User sync is login fallback.** Only sync if local lookup fails AND online. If offline + not found, error.
 12. **Never alter `created_at` for backdated transactions.** The `created_at` timestamp in both SQLite and Supabase must reflect real-world insertion time. Use the explicit `transaction_date` field for any custom, future, or backdated user selections. Cloud delta pulls rely entirely on chronological server-side `created_at` ordering.
+13. Expo Folder Structure Best Practices. The src/app directory is strictly reserved for routing. Do not create (tabs) or (auth) group folders, as they can cause routing layout conflicts. Build all screen UIs and colocate their sub-components safely inside src/screens/, and simply import/export them from the src/app/ router files.
