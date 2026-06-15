@@ -7,7 +7,9 @@ const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
 const SUPABASE_KEY = process.env.EXPO_PUBLIC_SUPABASE_KEY ?? '';
 const MODE = process.env.EXPO_PUBLIC_API_MODE ?? 'supabase';
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
+  auth: { persistSession: false },
+});
 
 export interface TenantRoster {
   users: User[];
@@ -15,13 +17,6 @@ export interface TenantRoster {
 }
 
 export const cloudAdapter = {
-  async signIn(phone: string, password: string): Promise<string | null> {
-    if (MODE !== 'supabase') return null;
-    const { data, error } = await supabase.auth.signInWithPassword({ phone, password });
-    if (error || !data.session) return null;
-    return data.session.access_token;
-  },
-
   async pullTenants(): Promise<Tenant[]> {
     if (MODE !== 'supabase') return [];
     const { data, error } = await supabase.from('tenants').select('*');
@@ -43,18 +38,22 @@ export const cloudAdapter = {
 
   async upsertCustomers(rows: Customer[]): Promise<void> {
     if (MODE !== 'supabase' || rows.length === 0) return;
-    await supabase.from('customers').upsert(
-      rows.map(({ is_dirty: _d, ...r }) => r),
-      { onConflict: 'id' },
-    );
+    await supabase
+      .from('customers')
+      .upsert(
+        rows.map(({ is_dirty: _d, ...r }) => r),
+        { onConflict: 'id' },
+      );
   },
 
   async upsertLedgerEntries(rows: LedgerEntry[]): Promise<void> {
     if (MODE !== 'supabase' || rows.length === 0) return;
-    await supabase.from('ledger_entries').upsert(
-      rows.map(({ is_dirty: _d, ...r }) => r),
-      { onConflict: 'id' },
-    );
+    await supabase
+      .from('ledger_entries')
+      .upsert(
+        rows.map(({ is_dirty: _d, ...r }) => r),
+        { onConflict: 'id' },
+      );
   },
 
   async pullLedgerSince(storeId: string, since: string): Promise<LedgerEntry[]> {

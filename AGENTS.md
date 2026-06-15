@@ -21,7 +21,7 @@
 | **Framework** | React Native (Expo SDK, targeting Android) |
 | **Local DB** | `expo-sqlite` (Primary execution layer) |
 | **Cloud DB** | Supabase (PostgreSQL) |
-| **Auth** | Supabase Auth (`auth.users`) + Local Bcrypt matching (Offline) |
+| **Auth** | Local Bcrypt (Offline) — Supabase anon key for sync only |
 | **Network Detection** | `@react-native-community/netinfo` |
 | **HTTP Client** | Supabase JS SDK — Swappable with native `fetch`/`axios` |
 | **State Management** | Zustand (Global persistence core) |
@@ -95,7 +95,7 @@ User Action
 ```
 
 ### Authentication & Multi-Store Flow
-Identity records rely securely upon Supabase Auth (`auth.users`), but map to public schemas where a database trigger replicates profiles down into data streams. This facilitates disconnected credentials evaluations completely offline.
+All credential verification happens offline against local SQLite. The cloud is never consulted during login. Supabase is used only for background sync via the anon key — data isolation is enforced by explicit `store_id`/`tenant_id` filters in every query, not by RLS.
 
 ```plaintext
 Step 1: User selects Tenant from dropdown (populated from locally synced tenants)
@@ -128,8 +128,7 @@ Session Initialization:
      user_id:   user.id
    }
 3. Direct UI routing to Home Dashboard immediately (0ms network delay)
-4. Async: If online, background authenticates against Supabase Auth 
-   via phone + password to acquire a fresh JWT token for the session cache.
+4. SyncEngine runs in background using the Supabase anon key
 ```
 
 #### Multi-Store Session Flipping
@@ -173,12 +172,11 @@ CREATE TABLE tenants (
 );
 
 CREATE TABLE users (
-  id               TEXT PRIMARY KEY,    -- Matches cloud auth.users structural UUID
+  id               TEXT PRIMARY KEY,
   tenant_id        TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   phone            TEXT NOT NULL,
-  password_hash    TEXT NOT NULL,       -- Replicated Bcrypt check string
-  default_store_id TEXT NOT NULL,       -- Starting baseline store assignment
-  jwt_cache        TEXT,                -- Scoped token fallback storage
+  password_hash    TEXT NOT NULL,       -- Bcrypt hash synced from cloud public.users
+  default_store_id TEXT NOT NULL,
   created_at       TEXT DEFAULT (datetime('now'))
 );
 
@@ -244,7 +242,7 @@ CREATE POLICY stores_tenant_isolation ON public.stores
   FOR SELECT USING (tenant_id = (auth.jwt() -> 'user_metadata' ->> 'tenant_id')::uuid);
 
 CREATE TABLE public.users (
-  id               UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id        UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
   phone            TEXT NOT NULL,
   password_hash    TEXT NOT NULL,
@@ -301,30 +299,11 @@ ALTER TABLE public.ledger_entries ENABLE ROW LEVEL SECURITY;
 CREATE POLICY ledger_store_isolation ON public.ledger_entries
   USING (store_id = (auth.jwt() -> 'user_metadata' ->> 'store_id')::uuid);
 
--- AUTOMATED STORAGE MIRROR FROM INTERNALS SCHEMA PILES
-CREATE OR REPLACE FUNCTION public.handle_auth_user_sync()
-RETURNS TRIGGER AS $$
-BEGIN
-  INSERT INTO public.users (id, tenant_id, phone, password_hash, default_store_id, created_at)
-  VALUES (
-    NEW.id,
-    (NEW.raw_user_meta_data ->> 'tenant_id')::uuid,
-    NEW.phone,
-    NEW.encrypted_password,
-    (NEW.raw_user_meta_data ->> 'default_store_id')::uuid,
-    NEW.created_at
-  )
-  ON CONFLICT (id) DO UPDATE SET
-    phone = EXCLUDED.phone,
-    password_hash = EXCLUDED.password_hash,
-    default_store_id = EXCLUDED.default_store_id;
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
-CREATE OR REPLACE TRIGGER on_auth_user_created_or_updated
-  AFTER INSERT OR UPDATE OF encrypted_password, phone, raw_user_meta_data ON auth.users
-  FOR EACH ROW EXECUTE FUNCTION public.handle_auth_user_sync();
+-- Users are managed directly in public.users (no auth.users dependency).
+-- Insert users via admin scripts or a dedicated onboarding API.
+-- Passwords must be pre-hashed with bcrypt before inserting:
+--   INSERT INTO public.users (tenant_id, phone, password_hash, default_store_id)
+--   VALUES (..., ..., '$2b$10$...bcrypt_hash...', ...);
 ```
 
 ---
@@ -333,14 +312,19 @@ CREATE OR REPLACE TRIGGER on_auth_user_created_or_updated
 
 **File:** `src/services/cloudAdapter.ts`
 
-Structural Rule: No operational file outside this layout component can mention or parse the raw supabase instantiation object.
-Payload Interception: Remapping network transport actions away from Supabase toward customized REST structures is managed entirely inside this layer.
+Structural Rule: No file outside this module may reference the Supabase client or call `supabase.*` directly.
+Payload Interception: All network transport is managed inside this layer. Swapping to a custom VM backend only requires changes here.
+
+A single anon-key Supabase client is used for all operations. Data isolation is enforced by explicit `store_id`/`tenant_id` filters in every query — not by RLS.
 
 ```typescript
 // Pseudo
-async syncUsers(tenantId) → cloudAdapter.pullUsers(tenantId)
-async pushDirty() → cloudAdapter.upsertLedger(dirtyRows)
-async signIn(phone, pin) → cloudAdapter.signIn(phone, pin)
+cloudAdapter.pullTenants()                    // fetch all tenants (bootstrap)
+cloudAdapter.pullTenantRoster(tenantId)       // fetch users + user_stores for tenant
+cloudAdapter.upsertCustomers(rows)            // push dirty customers
+cloudAdapter.upsertLedgerEntries(rows)        // push dirty ledger entries
+cloudAdapter.pullLedgerSince(storeId, since)  // delta pull ledger
+cloudAdapter.pullCustomersSince(storeId, since) // delta pull customers
 ```
 
 ---
@@ -394,9 +378,8 @@ radius: { sm: 6, md: 10, lg: 14, xl: 20 }
 
 ```env
 EXPO_PUBLIC_SUPABASE_URL=https://...
-EXPO_PUBLIC_SUPABASE_KEY=...
+EXPO_PUBLIC_SUPABASE_KEY=...   # Anon (public) key only — never service role
 EXPO_PUBLIC_API_MODE=supabase  # Switch to 'custom' for VM migration
-EXPO_PUBLIC_LOCAL_CRYPT_SALT=...
 ```
 
 All client vars must have `EXPO_PUBLIC_` prefix.

@@ -6,7 +6,6 @@ export interface User {
   phone: string;
   password_hash: string;
   default_store_id: string;
-  jwt_cache: string | null;
   created_at: string;
 }
 
@@ -82,10 +81,3 @@ export async function getUserStores(userId: string): Promise<UserStore[]> {
   );
 }
 
-export async function cacheJwt(userId: string, jwt: string): Promise<void> {
-  const db = await getDb();
-  await db.runAsync(
-    `UPDATE users SET jwt_cache = ? WHERE id = ?`,
-    [jwt, userId],
-  );
-}

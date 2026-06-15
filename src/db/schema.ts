@@ -26,7 +26,6 @@ async function initSchema(db: SQLite.SQLiteDatabase): Promise<void> {
       phone            TEXT NOT NULL,
       password_hash    TEXT NOT NULL,
       default_store_id TEXT NOT NULL,
-      jwt_cache        TEXT,
       created_at       TEXT DEFAULT (datetime('now'))
     );
 

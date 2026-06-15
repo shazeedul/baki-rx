@@ -12,10 +12,9 @@ import {
 import { router } from 'expo-router';
 import * as bcrypt from 'bcryptjs';
 import NetInfo from '@react-native-community/netinfo';
-import { getLocalTenants, findLocalUser, cacheJwt, type Tenant } from '../../db/queries/auth';
+import { getLocalTenants, findLocalUser, type Tenant } from '../../db/queries/auth';
 import { useAuthStore } from '../../store/authStore';
 import { syncEngine } from '../../sync/SyncEngine';
-import { cloudAdapter } from '../../services/cloudAdapter';
 import { colors, spacing, radius } from '../../constants/theme';
 
 export default function LoginScreen() {
@@ -87,7 +86,6 @@ export default function LoginScreen() {
           return;
         }
         setSession(retryUser.id, retryUser.tenant_id, retryUser.default_store_id);
-        backgroundSignIn(phone.trim(), password, retryUser.id);
         router.replace('/');
         return;
       }
@@ -99,22 +97,9 @@ export default function LoginScreen() {
       }
 
       setSession(user.id, user.tenant_id, user.default_store_id);
-      backgroundSignIn(phone.trim(), password, user.id);
       router.replace('/');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const backgroundSignIn = async (ph: string, pw: string, userId: string) => {
-    if (!isOnline) return;
-    try {
-      const token = await cloudAdapter.signIn(ph, pw);
-      if (token) {
-        await cacheJwt(userId, token);
-      }
-    } catch {
-      // silent — JWT is optional
     }
   };
 
