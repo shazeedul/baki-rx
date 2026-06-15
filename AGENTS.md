@@ -41,7 +41,8 @@ Aligned with official [Expo Folder Structure Best Practices](https://expo.dev/bl
 │   │   ├── index.tsx           # Imports and returns Home screen
 │   │   ├── login.tsx           # Imports and returns Login screen
 │   │   ├── entry.tsx           # Imports and returns Entry screen
-│   │   └── report.tsx          # Imports and returns Report screen
+│   │   ├── report.tsx          # Imports and returns Report screen
+│   │   └── tenant-sync.tsx     # Imports and returns Tenant Sync screen
 │   ├── screens/                # UI Screens (isolates components from router)
 │   │   ├── home/
 │   │   │   ├── index.tsx
@@ -50,7 +51,11 @@ Aligned with official [Expo Folder Structure Best Practices](https://expo.dev/bl
 │   │   │   └── index.tsx
 │   │   ├── entry/
 │   │   │   └── index.tsx
-│   │   └── report/
+│   │   ├── report/
+│   │   │   └── index.tsx
+│   │   ├── customer-ledger/
+│   │   │   └── index.tsx
+│   │   └── tenant-sync/
 │   │       └── index.tsx
 │   ├── components/             # Reusable global UI components
 │   │   ├── AddCustomerDrawer.tsx
@@ -328,6 +333,7 @@ A single anon-key Supabase client is used for all operations. Data isolation is 
 ```typescript
 // Pseudo
 cloudAdapter.pullTenants(); // fetch all tenants (bootstrap)
+cloudAdapter.findTenantByName(name); // fetch tenant details by exact or partial name match online
 cloudAdapter.pullTenantRoster(tenantId); // fetch users + user_stores for tenant
 cloudAdapter.upsertCustomers(rows); // push dirty customers
 cloudAdapter.upsertLedgerEntries(rows); // push dirty ledger entries
@@ -356,6 +362,9 @@ Displays responsive due amounts using calculated fields: due = totalBill - paidA
 7d. Report Filter Matrix — (tabs)/report.tsx
 Implements scrolling list managers handling multi-axis sorting matrices (Date Range, Customer filter, Entry Types).
 Interrogates transactional dates (transaction_date) for business visualization logic while ignoring system creation sync timestamps.
+
+7e. Tenant Sync Screen — tenant-sync.tsx
+Allows online search of business/tenant names. Fetches database roster, stores, and customers for the matched tenant, saving them locally to SQLite for subsequent offline authentication and use.
 
 **AddCustomerDrawer:** Bottom sheet, name + phone, insert with `is_dirty=1`.
 
@@ -453,3 +462,4 @@ When switching to custom backend:
 11. **Terminal/User sync is login fallback.** Only sync if local lookup fails AND online. If offline + not found, error.
 12. **Never alter `created_at` for backdated transactions.** The `created_at` timestamp in both SQLite and Supabase must reflect real-world insertion time. Use the explicit `transaction_date` field for any custom, future, or backdated user selections. Cloud delta pulls rely entirely on chronological server-side `created_at` ordering.
 13. Expo Folder Structure Best Practices. The src/app directory is strictly reserved for routing. Do not create (tabs) or (auth) group folders, as they can cause routing layout conflicts. Build all screen UIs and colocate their sub-components safely inside src/screens/, and simply import/export them from the src/app/ router files.
+14. In src directory path ref '@'

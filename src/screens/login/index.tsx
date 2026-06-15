@@ -28,28 +28,39 @@ export default function LoginScreen() {
   const [showTenantPicker, setShowTenantPicker] = useState(false);
 
   useEffect(() => {
-    loadTenants();
-    const unsub = NetInfo.addEventListener((s) => setIsOnline(!!s.isConnected));
-    return unsub;
-  }, []);
+    const bootstrapTenants = async () => {
+      try {
+        await syncEngine.bootstrapTenants();
+        const local = await getLocalTenants();
+        setTenants(local);
+      } catch {
+        // silent — will retry when online
+      }
+    };
 
-  const loadTenants = async () => {
-    const local = await getLocalTenants();
-    setTenants(local);
-    if (local.length === 0 && isOnline) {
-      await bootstrapTenants();
-    }
-  };
-
-  const bootstrapTenants = async () => {
-    try {
-      await syncEngine.bootstrapTenants();
+    const loadTenants = async (online: boolean) => {
       const local = await getLocalTenants();
       setTenants(local);
-    } catch {
-      // silent — will retry when online
-    }
-  };
+      if (online) {
+        await bootstrapTenants();
+      }
+    };
+
+    NetInfo.fetch().then((state) => {
+      const online = !!state.isConnected;
+      setIsOnline(online);
+      loadTenants(online);
+    });
+
+    const unsub = NetInfo.addEventListener((s) => {
+      const online = !!s.isConnected;
+      setIsOnline(online);
+      if (online) {
+        bootstrapTenants();
+      }
+    });
+    return unsub;
+  }, []);
 
   const handleLogin = async () => {
     if (!selectedTenant) {
@@ -187,6 +198,15 @@ export default function LoginScreen() {
             <Text style={styles.loginBtnText}>Sign In</Text>
           )}
         </TouchableOpacity>
+
+        {isOnline && (
+          <TouchableOpacity
+            style={styles.tenantSyncBtn}
+            onPress={() => router.push('/tenant-sync')}
+          >
+            <Text style={styles.tenantSyncText}>Sync New Business / Tenant</Text>
+          </TouchableOpacity>
+        )}
       </View>
     </ScrollView>
   );
@@ -272,4 +292,19 @@ const styles = StyleSheet.create({
   },
   loginBtnDisabled: { opacity: 0.5 },
   loginBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  tenantSyncBtn: {
+    height: 48,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    backgroundColor: 'transparent',
+  },
+  tenantSyncText: {
+    color: colors.primary,
+    fontSize: 14,
+    fontWeight: '600',
+  },
 });

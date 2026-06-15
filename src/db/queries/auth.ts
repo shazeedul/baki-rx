@@ -67,7 +67,7 @@ export async function clearAndRebuildUserStores(tenantId: string, userStores: Us
     for (const us of userStores) {
       await db.runAsync(
         `INSERT OR IGNORE INTO user_stores (user_id, store_id, tenant_id) VALUES (?, ?, ?)`,
-        [us.user_id, us.store_id, us.tenant_id],
+        [us.user_id, us.store_id, us.tenant_id || tenantId],
       );
     }
   });

@@ -49,6 +49,7 @@ export default function HomeScreen() {
   }, [storeId, setDirtyCount]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadData();
   }, [loadData]);
 

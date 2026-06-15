@@ -68,7 +68,10 @@ export default function CustomerLedgerScreen() {
     setLoading(false);
   }, [customerId, storeId]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    load();
+  }, [load]);
 
   const handleCall = () => {
     if (!customer?.phone) return;

@@ -67,14 +67,14 @@ export default function ReportScreen() {
           fromDate,
           toDate,
           entryType: entryType === 'all' ? undefined : entryType,
-        }) : Promise.resolve(summary),
+        }) : Promise.resolve(null),
       ]);
       if (replace) {
         setRows(data);
       } else {
         setRows((prev) => [...prev, ...data]);
       }
-      if (off === 0) setSummary(sum);
+      if (off === 0 && sum) setSummary(sum);
       setHasMore(data.length === PAGE_SIZE);
       setOffset(off + data.length);
       setLoading(false);

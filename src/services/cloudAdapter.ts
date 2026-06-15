@@ -88,4 +88,15 @@ export const cloudAdapter = {
     if (error || !data) return [];
     return data as Customer[];
   },
+
+  async findTenantByName(name: string): Promise<Tenant | null> {
+    if (MODE !== 'supabase') return null;
+    const { data, error } = await supabase
+      .from('tenants')
+      .select('*')
+      .ilike('business_name', name)
+      .limit(1);
+    if (error || !data || data.length === 0) return null;
+    return data[0] as Tenant;
+  },
 };

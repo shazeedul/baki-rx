@@ -1,8 +1,9 @@
-import { cloudAdapter } from '../services/cloudAdapter';
+import { clearAndRebuildUserStores, upsertTenant, upsertUser } from '../db/queries/auth';
 import { getDirtyCustomers, markCustomersSynced, upsertCustomerFromCloud } from '../db/queries/customers';
-import { getDirtyLedgerEntries, markLedgerEntriesSynced, upsertLedgerEntryFromCloud, countDirty } from '../db/queries/ledger';
-import { upsertUser, upsertTenant, clearAndRebuildUserStores } from '../db/queries/auth';
+import { countDirty, getDirtyLedgerEntries, markLedgerEntriesSynced, upsertLedgerEntryFromCloud } from '../db/queries/ledger';
 import { upsertStore } from '../db/queries/stores';
+import { getDb } from '../db/schema';
+import { cloudAdapter } from '../services/cloudAdapter';
 import { useSyncStore } from '../store/syncStore';
 
 class SyncEngine {
@@ -21,7 +22,7 @@ class SyncEngine {
       const dirty = await countDirty(storeId);
       useSyncStore.getState().setDirtyCount(dirty);
       useSyncStore.getState().setLastSyncedAt(new Date().toISOString());
-    } catch (_e) {
+    } catch {
       // Network failures are silent — is_dirty stays 1 and retries next connectivity event
     } finally {
       this.running = false;
@@ -59,6 +60,7 @@ class SyncEngine {
     const { users, userStores } = await cloudAdapter.pullTenantRoster(tenantId);
     if (!users || users.length === 0) return;
 
+    console.log(`Syncing ${users.length} users for tenant ${tenantId}`);
     for (const user of users) {
       await upsertUser(user);
     }
@@ -75,8 +77,32 @@ class SyncEngine {
 
   async syncStores(tenantId: string): Promise<void> {
     const stores = await cloudAdapter.pullStores(tenantId);
+    console.log(`Syncing ${stores.length} stores for tenant ${tenantId}`);
     for (const s of stores) {
       await upsertStore(s);
+    }
+  }
+
+  async syncTenantFull(tenantId: string): Promise<void> {
+    // 1. Pull and sync stores
+    await this.syncStores(tenantId);
+
+    // 2. Pull and sync users & user_stores
+    await this.syncUsers(tenantId);
+
+    // 3. Query all stores for the tenant to fetch their customers
+    const db = await getDb();
+    const rows = await db.getAllAsync<{ id: string }>(
+      `SELECT id FROM stores WHERE tenant_id = ?`,
+      [tenantId],
+    );
+
+    // 4. Pull and sync customers for each store
+    for (const row of rows) {
+      const customers = await cloudAdapter.pullCustomersSince(row.id, '1970-01-01T00:00:00.000Z');
+      for (const c of customers) {
+        await upsertCustomerFromCloud(c);
+      }
     }
   }
 }

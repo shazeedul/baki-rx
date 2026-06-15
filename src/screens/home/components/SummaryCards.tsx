@@ -19,7 +19,7 @@ export default function SummaryCards({ totalDue, todayCollection }: Props) {
         <Text style={[styles.cardAmount, { color: colors.danger }]}>{formatAmount(totalDue)}</Text>
       </View>
       <View style={[styles.card, styles.collectionCard]}>
-        <Text style={styles.cardLabel}>Today's Collection</Text>
+        <Text style={styles.cardLabel}>Today&apos;s Collection</Text>
         <Text style={[styles.cardAmount, { color: colors.primary }]}>{formatAmount(todayCollection)}</Text>
       </View>
     </View>
