@@ -10,6 +10,14 @@ export interface Customer {
   updated_at: string;
 }
 
+export async function getCustomerById(customerId: string, storeId: string): Promise<Customer | null> {
+  const db = await getDb();
+  return db.getFirstAsync<Customer>(
+    `SELECT * FROM customers WHERE id = ? AND store_id = ?`,
+    [customerId, storeId],
+  );
+}
+
 export async function insertCustomer(customer: Omit<Customer, 'created_at' | 'updated_at'>): Promise<void> {
   const db = await getDb();
   await db.runAsync(

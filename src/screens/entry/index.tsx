@@ -71,7 +71,7 @@ export default function EntryScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Text style={styles.backText}>← Back</Text>
         </TouchableOpacity>
-        <Text style={styles.title}>New Sale Entry</Text>
+        <Text style={styles.title}>New Baki Entry</Text>
         <View style={styles.placeholder} />
       </View>
 

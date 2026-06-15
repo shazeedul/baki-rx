@@ -12,6 +12,7 @@ import NetInfo from '@react-native-community/netinfo';
 import { useAuthStore } from '../../store/authStore';
 import { useSyncStore } from '../../store/syncStore';
 import { getTotalDue, getTodayCollection, getTopDefaulters, countDirty, type TopDefaulter } from '../../db/queries/ledger';
+import { getStore, type Store } from '../../db/queries/stores';
 import { syncEngine } from '../../sync/SyncEngine';
 import SummaryCards from './components/SummaryCards';
 import TopDefaultersList from './components/TopDefaultersList';
@@ -25,6 +26,7 @@ export default function HomeScreen() {
   const clearSession = useAuthStore((s) => s.clearSession);
   const setDirtyCount = useSyncStore((s) => s.setDirtyCount);
 
+  const [store, setStore] = useState<Store | null>(null);
   const [totalDue, setTotalDue] = useState(0);
   const [todayCollection, setTodayCollection] = useState(0);
   const [defaulters, setDefaulters] = useState<TopDefaulter[]>([]);
@@ -32,12 +34,14 @@ export default function HomeScreen() {
   const [drawerVisible, setDrawerVisible] = useState(false);
 
   const loadData = useCallback(async () => {
-    const [due, collection, tops, dirty] = await Promise.all([
+    const [storeInfo, due, collection, tops, dirty] = await Promise.all([
+      getStore(storeId),
       getTotalDue(storeId),
       getTodayCollection(storeId),
       getTopDefaulters(storeId),
       countDirty(storeId),
     ]);
+    setStore(storeInfo);
     setTotalDue(due);
     setTodayCollection(collection);
     setDefaulters(tops);
@@ -52,6 +56,7 @@ export default function HomeScreen() {
     const unsub = NetInfo.addEventListener((state) => {
       if (state.isConnected) {
         syncEngine.sync(storeId, tenantId);
+        syncEngine.syncStores(tenantId);
       }
     });
     return unsub;
@@ -71,7 +76,10 @@ export default function HomeScreen() {
   return (
     <View style={styles.root}>
       <View style={styles.topBar}>
-        <Text style={styles.appTitle}>Baki Rx</Text>
+        <View>
+          <Text style={styles.storeName}>{store?.store_name ?? 'My Branch'}</Text>
+          <Text style={styles.storeLocation}>{store?.location ?? ''}</Text>
+        </View>
         <View style={styles.topBarRight}>
           <SyncStatusBadge />
           <TouchableOpacity onPress={handleLogout} style={styles.logoutBtn}>
@@ -88,7 +96,7 @@ export default function HomeScreen() {
 
         <View style={styles.actionRow}>
           <TouchableOpacity style={styles.primaryBtn} onPress={() => router.push('/entry')}>
-            <Text style={styles.primaryBtnText}>+ New Sale</Text>
+            <Text style={styles.primaryBtnText}>+ New Baki Entry</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.secondaryBtn} onPress={() => setDrawerVisible(true)}>
             <Text style={styles.secondaryBtnText}>+ Add Customer</Text>
@@ -123,7 +131,8 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  appTitle: { fontSize: 18, fontWeight: '800', color: colors.primary },
+  storeName: { fontSize: 17, fontWeight: '800', color: colors.textPrimary },
+  storeLocation: { fontSize: 12, color: colors.textSecondary, marginTop: 1 },
   topBarRight: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   logoutBtn: { padding: spacing.sm },
   logoutText: { fontSize: 13, color: colors.textSecondary },

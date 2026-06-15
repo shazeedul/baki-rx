@@ -20,6 +20,14 @@ async function initSchema(db: SQLite.SQLiteDatabase): Promise<void> {
       created_at    TEXT DEFAULT (datetime('now'))
     );
 
+    CREATE TABLE IF NOT EXISTS stores (
+      id          TEXT PRIMARY KEY,
+      tenant_id   TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+      store_name  TEXT NOT NULL,
+      location    TEXT,
+      created_at  TEXT DEFAULT (datetime('now'))
+    );
+
     CREATE TABLE IF NOT EXISTS users (
       id               TEXT PRIMARY KEY,
       tenant_id        TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,

@@ -2,6 +2,7 @@ import { cloudAdapter } from '../services/cloudAdapter';
 import { getDirtyCustomers, markCustomersSynced, upsertCustomerFromCloud } from '../db/queries/customers';
 import { getDirtyLedgerEntries, markLedgerEntriesSynced, upsertLedgerEntryFromCloud, countDirty } from '../db/queries/ledger';
 import { upsertUser, upsertTenant, clearAndRebuildUserStores } from '../db/queries/auth';
+import { upsertStore } from '../db/queries/stores';
 import { useSyncStore } from '../store/syncStore';
 
 class SyncEngine {
@@ -69,6 +70,13 @@ class SyncEngine {
     const tenants = await cloudAdapter.pullTenants();
     for (const t of tenants) {
       await upsertTenant(t);
+    }
+  }
+
+  async syncStores(tenantId: string): Promise<void> {
+    const stores = await cloudAdapter.pullStores(tenantId);
+    for (const s of stores) {
+      await upsertStore(s);
     }
   }
 }

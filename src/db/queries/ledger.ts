@@ -183,6 +183,53 @@ export async function getFilteredSummary(
   return { totalBaki, totalCollected, netDue: totalBaki - totalCollected };
 }
 
+export interface CustomerLedgerEntry {
+  id: string;
+  entry_type: 'sale' | 'collection';
+  total_amount: number;
+  paid_amount: number;
+  note: string | null;
+  transaction_date: string;
+  running_balance: number;
+}
+
+export async function getCustomerTotalDue(customerId: string, storeId: string): Promise<number> {
+  const db = await getDb();
+  const row = await db.getFirstAsync<{ due: number }>(
+    `SELECT COALESCE(SUM(
+       CASE WHEN entry_type = 'sale' THEN (total_amount - paid_amount)
+            ELSE -paid_amount
+       END
+     ), 0) AS due
+     FROM ledger_entries
+     WHERE customer_id = ? AND store_id = ?`,
+    [customerId, storeId],
+  );
+  return row?.due ?? 0;
+}
+
+export async function getCustomerLedgerHistory(
+  customerId: string,
+  storeId: string,
+): Promise<CustomerLedgerEntry[]> {
+  const db = await getDb();
+  return db.getAllAsync<CustomerLedgerEntry>(
+    `SELECT id, entry_type, total_amount, paid_amount, note, transaction_date,
+            SUM(
+              CASE WHEN entry_type = 'sale' THEN (total_amount - paid_amount)
+                   ELSE -paid_amount
+              END
+            ) OVER (
+              ORDER BY transaction_date ASC, created_at ASC
+              ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+            ) AS running_balance
+     FROM ledger_entries
+     WHERE customer_id = ? AND store_id = ?
+     ORDER BY transaction_date DESC, created_at DESC`,
+    [customerId, storeId],
+  );
+}
+
 export async function getDirtyLedgerEntries(storeId: string): Promise<LedgerEntry[]> {
   const db = await getDb();
   return db.getAllAsync<LedgerEntry>(

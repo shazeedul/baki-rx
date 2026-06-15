@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import type { Customer } from '../db/queries/customers';
 import type { LedgerEntry } from '../db/queries/ledger';
 import type { User, Tenant, UserStore } from '../db/queries/auth';
+import type { Store } from '../db/queries/stores';
 
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
 const SUPABASE_KEY = process.env.EXPO_PUBLIC_SUPABASE_KEY ?? '';
@@ -17,6 +18,16 @@ export interface TenantRoster {
 }
 
 export const cloudAdapter = {
+  async pullStores(tenantId: string): Promise<Store[]> {
+    if (MODE !== 'supabase') return [];
+    const { data, error } = await supabase
+      .from('stores')
+      .select('*')
+      .eq('tenant_id', tenantId);
+    if (error || !data) return [];
+    return data as Store[];
+  },
+
   async pullTenants(): Promise<Tenant[]> {
     if (MODE !== 'supabase') return [];
     const { data, error } = await supabase.from('tenants').select('*');
