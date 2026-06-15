@@ -16,16 +16,16 @@
 
 ## 2. Tech Stack
 
-| Layer | Technology |
-|---|---|
-| **Framework** | React Native (Expo SDK, targeting Android) |
-| **Local DB** | `expo-sqlite` (Primary execution layer) |
-| **Cloud DB** | Supabase (PostgreSQL) |
-| **Auth** | Local Bcrypt (Offline) — Supabase anon key for sync only |
-| **Network Detection** | `@react-native-community/netinfo` |
-| **HTTP Client** | Supabase JS SDK — Swappable with native `fetch`/`axios` |
-| **State Management** | Zustand (Global persistence core) |
-| **Navigation** | React Navigation v6 (Stack + Drawer + Bottom Tab) |
+| Layer                 | Technology                                               |
+| --------------------- | -------------------------------------------------------- |
+| **Framework**         | React Native (Expo SDK, targeting Android)               |
+| **Local DB**          | `expo-sqlite` (Primary execution layer)                  |
+| **Cloud DB**          | Supabase (PostgreSQL)                                    |
+| **Auth**              | Local Bcrypt (Offline) — Supabase anon key for sync only |
+| **Network Detection** | `@react-native-community/netinfo`                        |
+| **HTTP Client**       | Supabase JS SDK — Swappable with native `fetch`/`axios`  |
+| **State Management**  | Zustand (Global persistence core)                        |
+| **Navigation**        | React Navigation v6 (Stack + Drawer + Bottom Tab)        |
 
 ---
 
@@ -80,11 +80,13 @@ Aligned with official [Expo Folder Structure Best Practices](https://expo.dev/bl
 ## 4. Architecture: Local-First Hybrid
 
 ### The Golden Rule
+
 **The UI never awaits a network response to render.** All application data reads target the local SQLite storage engine exclusively.
 
 ### Non-Blocking Write Cycle
 
 **Write Flow:**
+
 ```
 User Action
 → Write mutation directly to SQLite with is_dirty = 1
@@ -95,6 +97,7 @@ User Action
 ```
 
 ### Authentication & Multi-Store Flow
+
 All credential verification happens offline against local SQLite. The cloud is never consulted during login. Supabase is used only for background sync via the anon key — data isolation is enforced by explicit `store_id`/`tenant_id` filters in every query, not by RLS.
 
 ```plaintext
@@ -111,7 +114,7 @@ Step 2: User enters Mobile Number + Password/PIN
         ▼                                 ▼
    [ ROW FOUND ]                   [ ROW NOT FOUND ]
         │                                 │
-  Verify Password/PIN offline against     Show error: "Account not found 
+  Verify Password/PIN offline against     Show error: "Account not found
   local password_hash (Bcrypt format)     for this tenant on this device."
         │
   ┌─────┴──────────────┐
@@ -124,7 +127,7 @@ Session Initialization:
 2. Populate authStore:
    {
      tenant_id: user.tenant_id,
-     store_id:  user.default_store_id, 
+     store_id:  user.default_store_id,
      user_id:   user.id
    }
 3. Direct UI routing to Home Dashboard immediately (0ms network delay)
@@ -132,9 +135,11 @@ Session Initialization:
 ```
 
 #### Multi-Store Session Flipping
+
 Because access configurations map through the local `user_stores` join table, users switch active branches inside application navigation drawers without triggering secondary logout actions. Overwriting `authStore.store_id` updates all localized transactional filters instantly.
 
 #### `SyncEngine.syncUsers()` Protocol
+
 ```typescript
 async syncUsers(tenantId: string): Promise<void> {
   const { users, userStores } = await cloudAdapter.pullTenantRoster(tenantId);
@@ -151,11 +156,14 @@ async syncUsers(tenantId: string): Promise<void> {
 ```
 
 ### Delta Math Tracking
+
 Never push computed summary values across network layers. Sync raw transactional entries independently:
+
 ```json
 { "entry_type": "sale", "total_amount": 1500 }
 { "entry_type": "collection", "paid_amount": 500 }
 ```
+
 Balances compute responsively inside local queries by aggregating matching delta paths.
 
 ---
@@ -165,13 +173,13 @@ Balances compute responsively inside local queries by aggregating matching delta
 ### 5a. SQLite (Local)
 
 ```sql
-CREATE TABLE tenants (
+CREATE TABLE IF NOT EXISTS tenants (
   id            TEXT PRIMARY KEY,   -- Cloud-matched UUID string identifier
   business_name TEXT NOT NULL,
   created_at    TEXT DEFAULT (datetime('now'))
 );
 
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users (
   id               TEXT PRIMARY KEY,
   tenant_id        TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   phone            TEXT NOT NULL,
@@ -180,14 +188,14 @@ CREATE TABLE users (
   created_at       TEXT DEFAULT (datetime('now'))
 );
 
-CREATE TABLE user_stores (
+CREATE TABLE IF NOT EXISTS user_stores (
   user_id   TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   store_id  TEXT NOT NULL,
   tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   PRIMARY KEY (user_id, store_id)
 );
 
-CREATE TABLE customers (
+CREATE TABLE IF NOT EXISTS customers (
   id          TEXT PRIMARY KEY,
   store_id    TEXT NOT NULL,
   name        TEXT NOT NULL,
@@ -197,8 +205,8 @@ CREATE TABLE customers (
   updated_at  TEXT DEFAULT (datetime('now'))
 );
 
-CREATE TABLE ledger_entries (
-  id               TEXT PRIMARY KEY, 
+CREATE TABLE IF NOT EXISTS ledger_entries (
+  id               TEXT PRIMARY KEY,
   store_id         TEXT NOT NULL,
   customer_id      TEXT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
   entry_type       TEXT NOT NULL CHECK(entry_type IN ('sale','collection')),
@@ -223,13 +231,13 @@ CREATE INDEX idx_ledger_timeline    ON ledger_entries(customer_id, transaction_d
 ```sql
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
-CREATE TABLE public.tenants (
+CREATE TABLE IF NOT EXISTS public.tenants (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   business_name TEXT NOT NULL,
   created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE TABLE public.stores (
+CREATE TABLE IF NOT EXISTS public.stores (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id   UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
   store_name  TEXT NOT NULL,
@@ -241,7 +249,7 @@ ALTER TABLE public.stores ENABLE ROW LEVEL SECURITY;
 CREATE POLICY stores_tenant_isolation ON public.stores
   FOR SELECT USING (tenant_id = (auth.jwt() -> 'user_metadata' ->> 'tenant_id')::uuid);
 
-CREATE TABLE public.users (
+CREATE TABLE IF NOT EXISTS public.users (
   id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id        UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
   phone            TEXT NOT NULL,
@@ -251,7 +259,7 @@ CREATE TABLE public.users (
   CONSTRAINT       unique_tenant_phone UNIQUE (tenant_id, phone)
 );
 
-CREATE TABLE public.user_stores (
+CREATE TABLE IF NOT EXISTS public.user_stores (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id     UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
   store_id    UUID NOT NULL REFERENCES public.stores(id) ON DELETE CASCADE,
@@ -270,7 +278,7 @@ CREATE POLICY user_stores_tenant_isolation ON public.user_stores
     SELECT id FROM public.stores WHERE tenant_id = (auth.jwt() -> 'user_metadata' ->> 'tenant_id')::uuid
   ));
 
-CREATE TABLE public.customers (
+CREATE TABLE IF NOT EXISTS public.customers (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   store_id    UUID NOT NULL REFERENCES public.stores(id) ON DELETE CASCADE,
   name        TEXT NOT NULL,
@@ -283,7 +291,7 @@ ALTER TABLE public.customers ENABLE ROW LEVEL SECURITY;
 CREATE POLICY customers_store_isolation ON public.customers
   USING (store_id = (auth.jwt() -> 'user_metadata' ->> 'store_id')::uuid);
 
-CREATE TABLE public.ledger_entries (
+CREATE TABLE IF NOT EXISTS public.ledger_entries (
   id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   store_id         UUID NOT NULL REFERENCES public.stores(id) ON DELETE CASCADE,
   customer_id      UUID NOT NULL REFERENCES public.customers(id) ON DELETE CASCADE,
@@ -319,12 +327,12 @@ A single anon-key Supabase client is used for all operations. Data isolation is 
 
 ```typescript
 // Pseudo
-cloudAdapter.pullTenants()                    // fetch all tenants (bootstrap)
-cloudAdapter.pullTenantRoster(tenantId)       // fetch users + user_stores for tenant
-cloudAdapter.upsertCustomers(rows)            // push dirty customers
-cloudAdapter.upsertLedgerEntries(rows)        // push dirty ledger entries
-cloudAdapter.pullLedgerSince(storeId, since)  // delta pull ledger
-cloudAdapter.pullCustomersSince(storeId, since) // delta pull customers
+cloudAdapter.pullTenants(); // fetch all tenants (bootstrap)
+cloudAdapter.pullTenantRoster(tenantId); // fetch users + user_stores for tenant
+cloudAdapter.upsertCustomers(rows); // push dirty customers
+cloudAdapter.upsertLedgerEntries(rows); // push dirty ledger entries
+cloudAdapter.pullLedgerSince(storeId, since); // delta pull ledger
+cloudAdapter.pullCustomersSince(storeId, since); // delta pull customers
 ```
 
 ---
@@ -398,7 +406,7 @@ All client vars must have `EXPO_PUBLIC_` prefix.
 ## 11. UUID Generation
 
 ```typescript
-import * as Crypto from 'expo-crypto';
+import * as Crypto from "expo-crypto";
 const id = Crypto.randomUUID(); // For client-generated records
 ```
 
@@ -408,18 +416,19 @@ const id = Crypto.randomUUID(); // For client-generated records
 
 **Append-only ledger** — no updates/deletes, only inserts.
 
-| Scenario | Resolution |
-|---|---|
-| Same record pushed twice | `ON CONFLICT DO NOTHING` by `id` |
-| Two devices offline | Both valid; sync independently; balance recalculates |
-| Customer name edited | `updated_at` timestamp wins (last-write-wins) |
-| Network failure mid-sync | `is_dirty` stays 1; retry on next connectivity |
+| Scenario                 | Resolution                                           |
+| ------------------------ | ---------------------------------------------------- |
+| Same record pushed twice | `ON CONFLICT DO NOTHING` by `id`                     |
+| Two devices offline      | Both valid; sync independently; balance recalculates |
+| Customer name edited     | `updated_at` timestamp wins (last-write-wins)        |
+| Network failure mid-sync | `is_dirty` stays 1; retry on next connectivity       |
 
 ---
 
 ## 13. Future API VM Migration
 
 When switching to custom backend:
+
 - [ ] Endpoint `POST /auth/login` (phone, pin) → JWT with tenant_id, store_id
 - [ ] Endpoint `POST /ledger/batch` (array of entries)
 - [ ] Endpoint `GET /ledger?store_id=&since=` (delta pull)
