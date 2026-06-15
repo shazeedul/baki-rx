@@ -31,7 +31,7 @@ function today(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-export default function ReportScreen() {
+export default function ReportScreen({ isTab = false }: { isTab?: boolean }) {
   const storeId = useAuthStore((s) => s.storeId)!;
 
   const [fromDate, setFromDate] = useState(firstDay());
@@ -95,9 +95,13 @@ export default function ReportScreen() {
   return (
     <View style={styles.root}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Text style={styles.backText}>← Back</Text>
-        </TouchableOpacity>
+        {!isTab ? (
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+            <Text style={styles.backText}>← Back</Text>
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.backBtn} />
+        )}
         <Text style={styles.title}>Reports</Text>
         <View style={styles.placeholder} />
       </View>

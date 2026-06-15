@@ -3,7 +3,7 @@ import {
   View,
   Text,
   TextInput,
-  FlatList,
+  ScrollView,
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
@@ -94,33 +94,31 @@ export default function CustomerSearchDropdown({ onSelect, onAddNew, selectedCus
       {open && (
         <View style={styles.dropdown}>
           {loading && <ActivityIndicator size="small" color={colors.primary} style={{ margin: spacing.md }} />}
-          <FlatList
-            data={results}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => (
-              <TouchableOpacity style={styles.row} onPress={() => handleSelect(item)}>
-                <Text style={styles.rowName}>{item.name}</Text>
-                <Text style={styles.rowPhone}>{item.phone}</Text>
-              </TouchableOpacity>
-            )}
-            onEndReached={loadMore}
-            onEndReachedThreshold={0.3}
+          <ScrollView
+            style={styles.scrollList}
             keyboardShouldPersistTaps="handled"
-            ListEmptyComponent={
-              !loading ? (
+            nestedScrollEnabled
+          >
+            {results.length === 0 ? (
+              !loading && (
                 <TouchableOpacity style={styles.emptyRow} onPress={onAddNew}>
                   <Text style={styles.emptyText}>No customer found — tap + to add</Text>
                 </TouchableOpacity>
-              ) : null
-            }
-            ListFooterComponent={
-              hasMore ? (
-                <TouchableOpacity style={styles.loadMore} onPress={loadMore}>
-                  <Text style={styles.loadMoreText}>Load more</Text>
+              )
+            ) : (
+              results.map((item) => (
+                <TouchableOpacity key={item.id} style={styles.row} onPress={() => handleSelect(item)}>
+                  <Text style={styles.rowName}>{item.name}</Text>
+                  <Text style={styles.rowPhone}>{item.phone}</Text>
                 </TouchableOpacity>
-              ) : null
-            }
-          />
+              ))
+            )}
+            {hasMore && !loading && (
+              <TouchableOpacity style={styles.loadMore} onPress={loadMore}>
+                <Text style={styles.loadMoreText}>Load more</Text>
+              </TouchableOpacity>
+            )}
+          </ScrollView>
         </View>
       )}
     </View>
@@ -182,4 +180,5 @@ const styles = StyleSheet.create({
   emptyText: { color: colors.textSecondary, fontSize: 13 },
   loadMore: { padding: spacing.md, alignItems: 'center' },
   loadMoreText: { color: colors.primary, fontSize: 13 },
+  scrollList: { flex: 1 },
 });

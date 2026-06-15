@@ -16,7 +16,7 @@ import { syncEngine } from '../../sync/SyncEngine';
 import { upsertTenant, type Tenant } from '../../db/queries/auth';
 import { colors, spacing, radius } from '../../constants/theme';
 
-export default function TenantSyncScreen() {
+export default function TenantSyncScreen({ isTab = false }: { isTab?: boolean }) {
   const [isOnline, setIsOnline] = useState(true);
   const [searchName, setSearchName] = useState('');
   const [checking, setChecking] = useState(false);
@@ -104,9 +104,11 @@ export default function TenantSyncScreen() {
   return (
     <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Text style={styles.backText}>← Back to Login</Text>
-        </TouchableOpacity>
+        {!isTab && (
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+            <Text style={styles.backText}>← Back to Login</Text>
+          </TouchableOpacity>
+        )}
         <Text style={styles.appName}>Tenant Sync</Text>
         <Text style={styles.tagline}>Download profiles and rosters for offline use</Text>
       </View>

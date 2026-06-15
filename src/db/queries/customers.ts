@@ -83,3 +83,32 @@ export async function upsertCustomerFromCloud(customer: Omit<Customer, 'is_dirty
     [customer.id, customer.store_id, customer.name, customer.phone, customer.created_at, customer.updated_at],
   );
 }
+
+export interface CustomerBalance {
+  id: string;
+  name: string;
+  phone: string;
+  total_due: number;
+}
+
+export async function getCustomerBalances(storeId: string, search?: string): Promise<CustomerBalance[]> {
+  const db = await getDb();
+  let query = `
+    SELECT c.id, c.name, c.phone,
+           COALESCE(SUM(le.total_amount - le.paid_amount), 0) AS total_due
+    FROM customers c
+    LEFT JOIN ledger_entries le ON le.customer_id = c.id
+    WHERE c.store_id = ?
+  `;
+  const params: (string | number)[] = [storeId];
+  if (search) {
+    query += ` AND (c.name LIKE ? OR c.phone LIKE ?)`;
+    const p = `%${search}%`;
+    params.push(p, p);
+  }
+  query += `
+    GROUP BY c.id
+    ORDER BY c.name
+  `;
+  return db.getAllAsync<CustomerBalance>(query, params);
+}

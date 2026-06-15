@@ -18,6 +18,9 @@ import SummaryCards from './components/SummaryCards';
 import TopDefaultersList from './components/TopDefaultersList';
 import AddCustomerDrawer from '../../components/AddCustomerDrawer';
 import SyncStatusBadge from '../../components/SyncStatusBadge';
+import CustomersTab from './components/CustomersTab';
+import ReportScreen from '../report';
+import SyncTab from './components/SyncTab';
 import { colors, spacing, radius } from '../../constants/theme';
 
 export default function HomeScreen() {
@@ -32,6 +35,7 @@ export default function HomeScreen() {
   const [defaulters, setDefaulters] = useState<TopDefaulter[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [drawerVisible, setDrawerVisible] = useState(false);
+  const [activeTab, setActiveTab] = useState<'home' | 'customers' | 'reports' | 'sync'>('home');
 
   const loadData = useCallback(async () => {
     const [storeInfo, due, collection, tops, dirty] = await Promise.all([
@@ -74,6 +78,42 @@ export default function HomeScreen() {
     router.replace('/login');
   };
 
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case 'customers':
+        return <CustomersTab storeId={storeId} />;
+      case 'reports':
+        return <ReportScreen isTab />;
+      case 'sync':
+        return <SyncTab />;
+      case 'home':
+      default:
+        return (
+          <ScrollView
+            contentContainerStyle={styles.content}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} />}
+          >
+            <SummaryCards totalDue={totalDue} todayCollection={todayCollection} />
+
+            <View style={styles.actionRow}>
+              <TouchableOpacity style={styles.primaryBtn} onPress={() => router.push('/entry')}>
+                <Text style={styles.primaryBtnText}>+ New Baki Entry</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.secondaryBtn} onPress={() => setDrawerVisible(true)}>
+                <Text style={styles.secondaryBtnText}>+ Add Customer</Text>
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity style={styles.reportLink} onPress={() => setActiveTab('reports')}>
+              <Text style={styles.reportLinkText}>View Reports →</Text>
+            </TouchableOpacity>
+
+            <TopDefaultersList defaulters={defaulters} />
+          </ScrollView>
+        );
+    }
+  };
+
   return (
     <View style={styles.root}>
       <View style={styles.topBar}>
@@ -89,27 +129,28 @@ export default function HomeScreen() {
         </View>
       </View>
 
-      <ScrollView
-        contentContainerStyle={styles.content}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} />}
-      >
-        <SummaryCards totalDue={totalDue} todayCollection={todayCollection} />
+      <View style={styles.mainContent}>
+        {renderTabContent()}
+      </View>
 
-        <View style={styles.actionRow}>
-          <TouchableOpacity style={styles.primaryBtn} onPress={() => router.push('/entry')}>
-            <Text style={styles.primaryBtnText}>+ New Baki Entry</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.secondaryBtn} onPress={() => setDrawerVisible(true)}>
-            <Text style={styles.secondaryBtnText}>+ Add Customer</Text>
-          </TouchableOpacity>
-        </View>
-
-        <TouchableOpacity style={styles.reportLink} onPress={() => router.push('/report')}>
-          <Text style={styles.reportLinkText}>View Reports →</Text>
+      <View style={styles.tabBar}>
+        <TouchableOpacity style={styles.tabItem} onPress={() => setActiveTab('home')}>
+          <Text style={[styles.tabIcon, activeTab === 'home' && styles.tabActiveText]}>🏠</Text>
+          <Text style={[styles.tabLabel, activeTab === 'home' && styles.tabActiveText]}>Home</Text>
         </TouchableOpacity>
-
-        <TopDefaultersList defaulters={defaulters} />
-      </ScrollView>
+        <TouchableOpacity style={styles.tabItem} onPress={() => setActiveTab('customers')}>
+          <Text style={[styles.tabIcon, activeTab === 'customers' && styles.tabActiveText]}>👥</Text>
+          <Text style={[styles.tabLabel, activeTab === 'customers' && styles.tabActiveText]}>Customers</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.tabItem} onPress={() => setActiveTab('reports')}>
+          <Text style={[styles.tabIcon, activeTab === 'reports' && styles.tabActiveText]}>📊</Text>
+          <Text style={[styles.tabLabel, activeTab === 'reports' && styles.tabActiveText]}>Reports</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.tabItem} onPress={() => setActiveTab('sync')}>
+          <Text style={[styles.tabIcon, activeTab === 'sync' && styles.tabActiveText]}>🔄</Text>
+          <Text style={[styles.tabLabel, activeTab === 'sync' && styles.tabActiveText]}>Sync</Text>
+        </TouchableOpacity>
+      </View>
 
       <AddCustomerDrawer
         visible={drawerVisible}
@@ -161,4 +202,38 @@ const styles = StyleSheet.create({
   secondaryBtnText: { color: colors.primary, fontSize: 15, fontWeight: '600' },
   reportLink: { alignSelf: 'flex-end', marginBottom: spacing.lg, padding: spacing.xs },
   reportLinkText: { color: colors.primary, fontSize: 13, fontWeight: '600' },
+  mainContent: {
+    flex: 1,
+  },
+  tabBar: {
+    flexDirection: 'row',
+    height: 60,
+    backgroundColor: colors.surface,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    paddingBottom: 4,
+    paddingTop: 6,
+  },
+  tabItem: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    flex: 1,
+    height: '100%',
+  },
+  tabIcon: {
+    fontSize: 18,
+    color: colors.textSecondary,
+  },
+  tabLabel: {
+    fontSize: 10,
+    color: colors.textSecondary,
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  tabActiveText: {
+    color: colors.primary,
+    fontWeight: '700',
+  },
 });
