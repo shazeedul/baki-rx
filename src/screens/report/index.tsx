@@ -2,7 +2,6 @@ import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
-  TextInput,
   TouchableOpacity,
   FlatList,
   StyleSheet,
@@ -11,6 +10,8 @@ import {
 import { router } from 'expo-router';
 import { useAuthStore } from '@/store/authStore';
 import { getLedgerEntries, getFilteredSummary, type LedgerRow } from '@/db/queries/ledger';
+import DatePickerField from '@/components/DatePickerField';
+import SearchBar from '@/components/SearchBar';
 import { colors, spacing, radius } from '@/constants/theme';
 
 type EntryTypeFilter = 'all' | 'sale' | 'collection';
@@ -110,32 +111,18 @@ export default function ReportScreen({ isTab = false }: { isTab?: boolean }) {
       <View style={styles.filters}>
         <View style={styles.dateRow}>
           <View style={styles.dateField}>
-            <Text style={styles.filterLabel}>From</Text>
-            <TextInput
-              style={styles.dateInput}
-              value={fromDate}
-              onChangeText={setFromDate}
-              placeholder="YYYY-MM-DD"
-              maxLength={10}
-            />
+            <DatePickerField label="From" value={fromDate} onChange={setFromDate} compact />
           </View>
           <View style={styles.dateField}>
-            <Text style={styles.filterLabel}>To</Text>
-            <TextInput
-              style={styles.dateInput}
-              value={toDate}
-              onChangeText={setToDate}
-              placeholder="YYYY-MM-DD"
-              maxLength={10}
-            />
+            <DatePickerField label="To" value={toDate} onChange={setToDate} compact />
           </View>
         </View>
 
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search customer…"
+        <SearchBar
           value={customerSearch}
           onChangeText={setCustomerSearch}
+          placeholder="Search customer…"
+          compact
         />
 
         <View style={styles.segmentRow}>
@@ -238,26 +225,6 @@ const styles = StyleSheet.create({
   dateRow: { flexDirection: 'row', gap: spacing.sm },
   dateField: { flex: 1 },
   filterLabel: { fontSize: 10, color: colors.textSecondary, marginBottom: 2 },
-  dateInput: {
-    height: 40,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.sm,
-    paddingHorizontal: spacing.sm,
-    fontSize: 13,
-    color: colors.textPrimary,
-    backgroundColor: colors.background,
-  },
-  searchInput: {
-    height: 40,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.sm,
-    paddingHorizontal: spacing.sm,
-    fontSize: 13,
-    backgroundColor: colors.background,
-    color: colors.textPrimary,
-  },
   segmentRow: { flexDirection: 'row', gap: spacing.xs },
   segment: {
     paddingHorizontal: spacing.sm,

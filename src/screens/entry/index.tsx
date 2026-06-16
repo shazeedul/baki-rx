@@ -17,6 +17,7 @@ import { insertLedgerEntry } from '@/db/queries/ledger';
 import { type Customer } from '@/db/queries/customers';
 import CustomerSearchDropdown from '@/components/CustomerSearchDropdown';
 import AddCustomerDrawer from '@/components/AddCustomerDrawer';
+import DatePickerField from '@/components/DatePickerField';
 import { colors, spacing, radius } from '@/constants/theme';
 
 export default function EntryScreen() {
@@ -88,13 +89,10 @@ export default function EntryScreen() {
             onAddNew={() => setDrawerVisible(true)}
           />
 
-          <Text style={styles.label}>Transaction Date</Text>
-          <TextInput
-            style={styles.input}
+          <DatePickerField
+            label="Transaction Date"
             value={transactionDate}
-            onChangeText={setTransactionDate}
-            placeholder="YYYY-MM-DD"
-            maxLength={10}
+            onChange={setTransactionDate}
           />
 
           <Text style={styles.label}>Total Bill *</Text>

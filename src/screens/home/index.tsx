@@ -21,6 +21,7 @@ import SyncStatusBadge from '@/components/SyncStatusBadge';
 import CustomersTab from '@/screens/home/components/CustomersTab';
 import ReportScreen from '@/screens/report';
 import SyncTab from '@/screens/home/components/SyncTab';
+import { Home, Users, BarChart2, RefreshCw } from 'lucide-react-native';
 import { colors, spacing, radius } from '@/constants/theme';
 
 export default function HomeScreen() {
@@ -134,22 +135,20 @@ export default function HomeScreen() {
       </View>
 
       <View style={styles.tabBar}>
-        <TouchableOpacity style={styles.tabItem} onPress={() => setActiveTab('home')}>
-          <Text style={[styles.tabIcon, activeTab === 'home' && styles.tabActiveText]}>🏠</Text>
-          <Text style={[styles.tabLabel, activeTab === 'home' && styles.tabActiveText]}>Home</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.tabItem} onPress={() => setActiveTab('customers')}>
-          <Text style={[styles.tabIcon, activeTab === 'customers' && styles.tabActiveText]}>👥</Text>
-          <Text style={[styles.tabLabel, activeTab === 'customers' && styles.tabActiveText]}>Customers</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.tabItem} onPress={() => setActiveTab('reports')}>
-          <Text style={[styles.tabIcon, activeTab === 'reports' && styles.tabActiveText]}>📊</Text>
-          <Text style={[styles.tabLabel, activeTab === 'reports' && styles.tabActiveText]}>Reports</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.tabItem} onPress={() => setActiveTab('sync')}>
-          <Text style={[styles.tabIcon, activeTab === 'sync' && styles.tabActiveText]}>🔄</Text>
-          <Text style={[styles.tabLabel, activeTab === 'sync' && styles.tabActiveText]}>Sync</Text>
-        </TouchableOpacity>
+        {([
+          { key: 'home',      label: 'Home',      Icon: Home },
+          { key: 'customers', label: 'Customers',  Icon: Users },
+          { key: 'reports',   label: 'Reports',    Icon: BarChart2 },
+          { key: 'sync',      label: 'Sync',       Icon: RefreshCw },
+        ] as const).map(({ key, label, Icon }) => {
+          const active = activeTab === key;
+          return (
+            <TouchableOpacity key={key} style={styles.tabItem} onPress={() => setActiveTab(key)}>
+              <Icon size={22} color={active ? colors.primary : colors.textSecondary} strokeWidth={active ? 2.2 : 1.8} />
+              <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>{label}</Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
 
       <AddCustomerDrawer
@@ -221,18 +220,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     flex: 1,
     height: '100%',
-  },
-  tabIcon: {
-    fontSize: 18,
-    color: colors.textSecondary,
+    gap: 3,
   },
   tabLabel: {
     fontSize: 10,
     color: colors.textSecondary,
     fontWeight: '600',
-    marginTop: 2,
   },
-  tabActiveText: {
+  tabLabelActive: {
     color: colors.primary,
     fontWeight: '700',
   },

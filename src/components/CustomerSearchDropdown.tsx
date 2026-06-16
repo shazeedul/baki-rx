@@ -2,7 +2,6 @@ import React, { useState, useCallback, useRef } from 'react';
 import {
   View,
   Text,
-  TextInput,
   ScrollView,
   TouchableOpacity,
   StyleSheet,
@@ -10,6 +9,7 @@ import {
 } from 'react-native';
 import { useAuthStore } from '@/store/authStore';
 import { searchCustomers, listCustomers, type Customer } from '@/db/queries/customers';
+import SearchBar from '@/components/SearchBar';
 import { colors, spacing, radius } from '@/constants/theme';
 
 interface Props {
@@ -81,13 +81,11 @@ export default function CustomerSearchDropdown({ onSelect, onAddNew, selectedCus
           <Text style={styles.changeBtn}>Change</Text>
         </TouchableOpacity>
       ) : (
-        <TextInput
-          style={styles.input}
-          placeholder="Search by name or mobile…"
+        <SearchBar
           value={query}
           onChangeText={handleChangeText}
+          placeholder="Search by name or mobile…"
           onFocus={handleFocus}
-          autoCapitalize="none"
         />
       )}
 
@@ -127,16 +125,6 @@ export default function CustomerSearchDropdown({ onSelect, onAddNew, selectedCus
 
 const styles = StyleSheet.create({
   container: { position: 'relative', zIndex: 10 },
-  input: {
-    height: 48,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.md,
-    backgroundColor: colors.surface,
-    fontSize: 14,
-    color: colors.textPrimary,
-  },
   selectedChip: {
     height: 56,
     flexDirection: 'row',
@@ -153,7 +141,7 @@ const styles = StyleSheet.create({
   changeBtn: { fontSize: 12, color: colors.primary, fontWeight: '600' },
   dropdown: {
     position: 'absolute',
-    top: 52,
+    top: 56,
     left: 0,
     right: 0,
     maxHeight: 220,
