@@ -1,18 +1,26 @@
 import * as SQLite from 'expo-sqlite';
 
-let _db: SQLite.SQLiteDatabase | null = null;
+let _dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
-export async function getDb(): Promise<SQLite.SQLiteDatabase> {
-  if (_db) return _db;
-  _db = await SQLite.openDatabaseAsync('bakirx.db');
-  await initSchema(_db);
-  return _db;
+export function getDb(): Promise<SQLite.SQLiteDatabase> {
+  if (_dbPromise) return _dbPromise;
+  _dbPromise = (async () => {
+    const db = await SQLite.openDatabaseAsync('bakirx.db');
+    await initSchema(db);
+    return db;
+  })();
+  return _dbPromise;
 }
 
 async function initSchema(db: SQLite.SQLiteDatabase): Promise<void> {
   await db.execAsync(`
     PRAGMA journal_mode = WAL;
     PRAGMA foreign_keys = ON;
+
+    CREATE TABLE IF NOT EXISTS kv_store (
+      key   TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    );
 
     CREATE TABLE IF NOT EXISTS tenants (
       id            TEXT PRIMARY KEY,
