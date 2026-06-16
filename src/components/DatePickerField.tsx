@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
-import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import { colors, radius, spacing } from '@/constants/theme';
+import DateTimePicker, { type DateTimePickerChangeEvent } from '@react-native-community/datetimepicker';
 import { CalendarDays } from 'lucide-react-native';
-import { colors, spacing, radius } from '@/constants/theme';
+import { useState } from 'react';
+import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 interface Props {
   value: string; // YYYY-MM-DD
@@ -26,9 +26,13 @@ function toStr(date: Date): string {
 export default function DatePickerField({ value, onChange, label, compact = false }: Props) {
   const [show, setShow] = useState(false);
 
-  const handleChange = (_: DateTimePickerEvent, selected?: Date) => {
+  const handleValueChange = (_: DateTimePickerChangeEvent, selected: Date) => {
     setShow(Platform.OS === 'ios');
     if (selected) onChange(toStr(selected));
+  };
+
+  const handleDismiss = () => {
+    setShow(false);
   };
 
   return (
@@ -47,7 +51,8 @@ export default function DatePickerField({ value, onChange, label, compact = fals
           value={toDate(value)}
           mode="date"
           display="default"
-          onChange={handleChange}
+          onValueChange={handleValueChange}
+          onDismiss={handleDismiss}
           maximumDate={new Date(2099, 11, 31)}
         />
       )}
