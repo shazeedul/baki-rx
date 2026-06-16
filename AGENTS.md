@@ -462,4 +462,7 @@ When switching to custom backend:
 11. **Terminal/User sync is login fallback.** Only sync if local lookup fails AND online. If offline + not found, error.
 12. **Never alter `created_at` for backdated transactions.** The `created_at` timestamp in both SQLite and Supabase must reflect real-world insertion time. Use the explicit `transaction_date` field for any custom, future, or backdated user selections. Cloud delta pulls rely entirely on chronological server-side `created_at` ordering.
 13. Expo Folder Structure Best Practices. The src/app directory is strictly reserved for routing. Do not create (tabs) or (auth) group folders, as they can cause routing layout conflicts. Build all screen UIs and colocate their sub-components safely inside src/screens/, and simply import/export them from the src/app/ router files.
-14. In src directory path ref '@'
+14. In src directory path ref '@'.
+15. Use `@react-native-community/datetimepicker` for all date picker inputs.
+16. Use React Native `TextInput` with custom styling for all search bar inputs.
+17. Use `lucide-react-native` for all icons in screens. Reference: https://lucide.dev/guide/react-native
