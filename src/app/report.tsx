@@ -1,2 +1,2 @@
-import ReportScreen from '../screens/report';
+import ReportScreen from '@/screens/report';
 export default ReportScreen;

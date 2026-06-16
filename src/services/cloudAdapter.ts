@@ -1,8 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
-import type { Customer } from '../db/queries/customers';
-import type { LedgerEntry } from '../db/queries/ledger';
-import type { User, Tenant, UserStore } from '../db/queries/auth';
-import type { Store } from '../db/queries/stores';
+import type { Customer } from '@/db/queries/customers';
+import type { LedgerEntry } from '@/db/queries/ledger';
+import type { User, Tenant, UserStore } from '@/db/queries/auth';
+import type { Store } from '@/db/queries/stores';
 
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
 const SUPABASE_KEY = process.env.EXPO_PUBLIC_SUPABASE_KEY ?? '';

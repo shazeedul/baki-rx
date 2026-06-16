@@ -15,15 +15,15 @@ import {
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as Crypto from 'expo-crypto';
-import { useAuthStore } from '../../store/authStore';
-import { getCustomerById, type Customer } from '../../db/queries/customers';
+import { useAuthStore } from '@/store/authStore';
+import { getCustomerById, type Customer } from '@/db/queries/customers';
 import {
   getCustomerTotalDue,
   getCustomerLedgerHistory,
   insertLedgerEntry,
   type CustomerLedgerEntry,
-} from '../../db/queries/ledger';
-import { colors, spacing, radius } from '../../constants/theme';
+} from '@/db/queries/ledger';
+import { colors, spacing, radius } from '@/constants/theme';
 
 function fmt(n: number) {
   return '৳' + Math.abs(n).toLocaleString('en-BD', { minimumFractionDigits: 0, maximumFractionDigits: 2 });

@@ -12,12 +12,12 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import * as Crypto from 'expo-crypto';
-import { useAuthStore } from '../../store/authStore';
-import { insertLedgerEntry } from '../../db/queries/ledger';
-import { type Customer } from '../../db/queries/customers';
-import CustomerSearchDropdown from '../../components/CustomerSearchDropdown';
-import AddCustomerDrawer from '../../components/AddCustomerDrawer';
-import { colors, spacing, radius } from '../../constants/theme';
+import { useAuthStore } from '@/store/authStore';
+import { insertLedgerEntry } from '@/db/queries/ledger';
+import { type Customer } from '@/db/queries/customers';
+import CustomerSearchDropdown from '@/components/CustomerSearchDropdown';
+import AddCustomerDrawer from '@/components/AddCustomerDrawer';
+import { colors, spacing, radius } from '@/constants/theme';
 
 export default function EntryScreen() {
   const storeId = useAuthStore((s) => s.storeId)!;

@@ -9,19 +9,19 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import NetInfo from '@react-native-community/netinfo';
-import { useAuthStore } from '../../store/authStore';
-import { useSyncStore } from '../../store/syncStore';
-import { getTotalDue, getTodayCollection, getTopDefaulters, countDirty, type TopDefaulter } from '../../db/queries/ledger';
-import { getStore, type Store } from '../../db/queries/stores';
-import { syncEngine } from '../../sync/SyncEngine';
-import SummaryCards from './components/SummaryCards';
-import TopDefaultersList from './components/TopDefaultersList';
-import AddCustomerDrawer from '../../components/AddCustomerDrawer';
-import SyncStatusBadge from '../../components/SyncStatusBadge';
-import CustomersTab from './components/CustomersTab';
-import ReportScreen from '../report';
-import SyncTab from './components/SyncTab';
-import { colors, spacing, radius } from '../../constants/theme';
+import { useAuthStore } from '@/store/authStore';
+import { useSyncStore } from '@/store/syncStore';
+import { getTotalDue, getTodayCollection, getTopDefaulters, countDirty, type TopDefaulter } from '@/db/queries/ledger';
+import { getStore, type Store } from '@/db/queries/stores';
+import { syncEngine } from '@/sync/SyncEngine';
+import SummaryCards from '@/screens/home/components/SummaryCards';
+import TopDefaultersList from '@/screens/home/components/TopDefaultersList';
+import AddCustomerDrawer from '@/components/AddCustomerDrawer';
+import SyncStatusBadge from '@/components/SyncStatusBadge';
+import CustomersTab from '@/screens/home/components/CustomersTab';
+import ReportScreen from '@/screens/report';
+import SyncTab from '@/screens/home/components/SyncTab';
+import { colors, spacing, radius } from '@/constants/theme';
 
 export default function HomeScreen() {
   const storeId = useAuthStore((s) => s.storeId)!;

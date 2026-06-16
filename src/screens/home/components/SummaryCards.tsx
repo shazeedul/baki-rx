@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { colors, spacing, radius } from '../../../constants/theme';
+import { colors, spacing, radius } from '@/constants/theme';
 
 interface Props {
   totalDue: number;

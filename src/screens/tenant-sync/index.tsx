@@ -11,10 +11,10 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import NetInfo from '@react-native-community/netinfo';
-import { cloudAdapter } from '../../services/cloudAdapter';
-import { syncEngine } from '../../sync/SyncEngine';
-import { upsertTenant, type Tenant } from '../../db/queries/auth';
-import { colors, spacing, radius } from '../../constants/theme';
+import { cloudAdapter } from '@/services/cloudAdapter';
+import { syncEngine } from '@/sync/SyncEngine';
+import { upsertTenant, type Tenant } from '@/db/queries/auth';
+import { colors, spacing, radius } from '@/constants/theme';
 
 export default function TenantSyncScreen({ isTab = false }: { isTab?: boolean }) {
   const [isOnline, setIsOnline] = useState(true);

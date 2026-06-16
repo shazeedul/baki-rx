@@ -1,2 +1,2 @@
-import CustomerLedgerScreen from '../screens/customer-ledger';
+import CustomerLedgerScreen from '@/screens/customer-ledger';
 export default CustomerLedgerScreen;

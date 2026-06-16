@@ -1,2 +1,2 @@
-import TenantSyncScreen from '../screens/tenant-sync';
+import TenantSyncScreen from '@/screens/tenant-sync';
 export default TenantSyncScreen;

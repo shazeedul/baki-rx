@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { Stack, router } from 'expo-router';
-import { getDb } from '../db/schema';
-import { useAuthStore } from '../store/authStore';
-import { colors } from '../constants/theme';
+import { getDb } from '@/db/schema';
+import { useAuthStore } from '@/store/authStore';
+import { colors } from '@/constants/theme';
 
 export default function RootLayout() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);

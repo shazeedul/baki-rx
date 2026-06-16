@@ -11,9 +11,9 @@ import {
   Alert,
 } from 'react-native';
 import * as Crypto from 'expo-crypto';
-import { useAuthStore } from '../store/authStore';
-import { insertCustomer } from '../db/queries/customers';
-import { colors, spacing, radius } from '../constants/theme';
+import { useAuthStore } from '@/store/authStore';
+import { insertCustomer } from '@/db/queries/customers';
+import { colors, spacing, radius } from '@/constants/theme';
 
 interface Props {
   visible: boolean;

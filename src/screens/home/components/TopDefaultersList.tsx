@@ -1,8 +1,8 @@
 import React from 'react';
 import { View, Text, FlatList, StyleSheet, TouchableOpacity, Linking } from 'react-native';
 import { router } from 'expo-router';
-import type { TopDefaulter } from '../../../db/queries/ledger';
-import { colors, spacing, radius } from '../../../constants/theme';
+import type { TopDefaulter } from '@/db/queries/ledger';
+import { colors, spacing, radius } from '@/constants/theme';
 
 interface Props {
   defaulters: TopDefaulter[];

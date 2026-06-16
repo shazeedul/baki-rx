@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { useSyncStore } from '../store/syncStore';
-import { colors, spacing, radius } from '../constants/theme';
+import { useSyncStore } from '@/store/syncStore';
+import { colors, spacing, radius } from '@/constants/theme';
 
 export default function SyncStatusBadge() {
   const { dirtyCount, isSyncing } = useSyncStore();

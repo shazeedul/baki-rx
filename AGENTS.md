@@ -323,7 +323,7 @@ CREATE POLICY ledger_store_isolation ON public.ledger_entries
 
 ## 6. Cloud Adapter (API Boundary)
 
-**File:** `src/services/cloudAdapter.ts`
+**File:** `@/services/cloudAdapter.ts`
 
 Structural Rule: No file outside this module may reference the Supabase client or call `supabase.*` directly.
 Payload Interception: All network transport is managed inside this layer. Swapping to a custom VM backend only requires changes here.
@@ -373,7 +373,7 @@ Allows online search of business/tenant names. Fetches database roster, stores, 
 ## 8. Design System
 
 ```typescript
-// src/constants/theme.ts
+// @/constants/theme.ts
 colors: {
   primary: '#218868',         // Green (buttons, positive)
   danger: '#D92D20',          // Red (due balance, errors ONLY)

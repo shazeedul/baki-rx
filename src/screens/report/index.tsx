@@ -9,9 +9,9 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { router } from 'expo-router';
-import { useAuthStore } from '../../store/authStore';
-import { getLedgerEntries, getFilteredSummary, type LedgerRow } from '../../db/queries/ledger';
-import { colors, spacing, radius } from '../../constants/theme';
+import { useAuthStore } from '@/store/authStore';
+import { getLedgerEntries, getFilteredSummary, type LedgerRow } from '@/db/queries/ledger';
+import { colors, spacing, radius } from '@/constants/theme';
 
 type EntryTypeFilter = 'all' | 'sale' | 'collection';
 type SortOrder = 'newest' | 'oldest';

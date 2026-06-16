@@ -8,10 +8,10 @@ import {
   Alert,
 } from 'react-native';
 import NetInfo from '@react-native-community/netinfo';
-import { useAuthStore } from '../../../store/authStore';
-import { useSyncStore } from '../../../store/syncStore';
-import { syncEngine } from '../../../sync/SyncEngine';
-import { colors, spacing, radius } from '../../../constants/theme';
+import { useAuthStore } from '@/store/authStore';
+import { useSyncStore } from '@/store/syncStore';
+import { syncEngine } from '@/sync/SyncEngine';
+import { colors, spacing, radius } from '@/constants/theme';
 
 function formatTime(isoString: string | null): string {
   if (!isoString) return 'Never';

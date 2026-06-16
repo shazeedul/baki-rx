@@ -12,10 +12,10 @@ import {
 import { router } from 'expo-router';
 import * as bcrypt from 'bcryptjs';
 import NetInfo from '@react-native-community/netinfo';
-import { getLocalTenants, findLocalUser, type Tenant } from '../../db/queries/auth';
-import { useAuthStore } from '../../store/authStore';
-import { syncEngine } from '../../sync/SyncEngine';
-import { colors, spacing, radius } from '../../constants/theme';
+import { getLocalTenants, findLocalUser, type Tenant } from '@/db/queries/auth';
+import { useAuthStore } from '@/store/authStore';
+import { syncEngine } from '@/sync/SyncEngine';
+import { colors, spacing, radius } from '@/constants/theme';
 
 export default function LoginScreen() {
   const setSession = useAuthStore((s) => s.setSession);

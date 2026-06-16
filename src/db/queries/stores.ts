@@ -1,4 +1,4 @@
-import { getDb } from '../schema';
+import { getDb } from '@/db/schema';
 
 export interface Store {
   id: string;

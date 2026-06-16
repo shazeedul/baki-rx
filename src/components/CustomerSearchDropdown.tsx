@@ -8,9 +8,9 @@ import {
   StyleSheet,
   ActivityIndicator,
 } from 'react-native';
-import { useAuthStore } from '../store/authStore';
-import { searchCustomers, listCustomers, type Customer } from '../db/queries/customers';
-import { colors, spacing, radius } from '../constants/theme';
+import { useAuthStore } from '@/store/authStore';
+import { searchCustomers, listCustomers, type Customer } from '@/db/queries/customers';
+import { colors, spacing, radius } from '@/constants/theme';
 
 interface Props {
   onSelect: (customer: Customer) => void;

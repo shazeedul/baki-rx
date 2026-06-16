@@ -9,9 +9,9 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { router } from 'expo-router';
-import { getCustomerBalances, type CustomerBalance } from '../../../db/queries/customers';
-import { colors, spacing, radius } from '../../../constants/theme';
-import AddCustomerDrawer from '../../../components/AddCustomerDrawer';
+import { getCustomerBalances, type CustomerBalance } from '@/db/queries/customers';
+import { colors, spacing, radius } from '@/constants/theme';
+import AddCustomerDrawer from '@/components/AddCustomerDrawer';
 
 interface Props {
   storeId: string;
