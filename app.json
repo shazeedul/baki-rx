@@ -45,6 +45,9 @@
         "projectId": "3c6d07a4-cb57-4db1-93d0-9a6383d14e50"
       }
     },
-    "owner": "dev-wizard"
+    "owner": "dev-wizard",
+    "ios": {
+      "bundleIdentifier": "com.devwizard.bakirx"
+    }
   }
 }
