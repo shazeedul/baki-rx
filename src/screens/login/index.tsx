@@ -115,7 +115,7 @@ export default function LoginScreen() {
   };
 
   const connectivityLabel = isOnline ? 'Online' : tenants.length > 0 ? 'Offline Mode Ready' : 'Sync Required';
-  const connectivityColor = isOnline ? colors.primary : tenants.length > 0 ? colors.primary : '#D97706';
+  const connectivityColor = isOnline ? colors.primary : tenants.length > 0 ? colors.primary : colors.warning;
 
   return (
     <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">

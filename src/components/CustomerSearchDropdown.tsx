@@ -67,6 +67,7 @@ export default function CustomerSearchDropdown({ onSelect, onAddNew, selectedCus
 
   const loadMore = () => {
     if (!hasMore || loading) return;
+    setLoading(true);
     runSearch(query, offset);
   };
 

@@ -1,10 +1,10 @@
-import { getDb } from '@/db/schema';
+import { getDb } from "@/db/schema";
 
 export interface LedgerEntry {
   id: string;
   store_id: string;
   customer_id: string;
-  entry_type: 'sale' | 'collection';
+  entry_type: "sale" | "collection";
   total_amount: number;
   paid_amount: number;
   note: string | null;
@@ -26,7 +26,9 @@ export interface LedgerRow extends LedgerEntry {
   due_amount: number;
 }
 
-export async function insertLedgerEntry(entry: Omit<LedgerEntry, 'created_at'>): Promise<void> {
+export async function insertLedgerEntry(
+  entry: Omit<LedgerEntry, "created_at">,
+): Promise<void> {
   const db = await getDb();
   await db.runAsync(
     `INSERT INTO ledger_entries
@@ -48,7 +50,11 @@ export async function insertLedgerEntry(entry: Omit<LedgerEntry, 'created_at'>):
 export async function getTotalDue(storeId: string): Promise<number> {
   const db = await getDb();
   const row = await db.getFirstAsync<{ total: number }>(
-    `SELECT COALESCE(SUM(total_amount - paid_amount), 0) AS total
+    `SELECT COALESCE(SUM(
+       CASE WHEN entry_type = 'sale' THEN (total_amount - paid_amount)
+            WHEN entry_type = 'collection' THEN -paid_amount
+            ELSE 0 END
+     ), 0) AS total
      FROM ledger_entries WHERE store_id = ?`,
     [storeId],
   );
@@ -66,11 +72,20 @@ export async function getTodayCollection(storeId: string): Promise<number> {
   return row?.total ?? 0;
 }
 
-export async function getTopDefaulters(storeId: string, limit = 20): Promise<TopDefaulter[]> {
+export async function getTopDefaulters(
+  storeId: string,
+  limit = 20,
+): Promise<TopDefaulter[]> {
   const db = await getDb();
   return db.getAllAsync<TopDefaulter>(
     `SELECT le.customer_id, c.name, c.phone,
-            SUM(le.total_amount - le.paid_amount) AS total_due
+            SUM(
+              CASE
+              WHEN le.entry_type = "sale" THEN le.total_amount - le.paid_amount
+              WHEN le.entry_type = "collection" THEN -(le.paid_amount)
+              ELSE 0
+              END
+            ) AS total_due
      FROM ledger_entries le
      JOIN customers c ON c.id = le.customer_id
      WHERE le.store_id = ?
@@ -89,8 +104,8 @@ export async function getLedgerEntries(
     toDate?: string;
     customerId?: string;
     customerSearch?: string;
-    entryType?: 'sale' | 'collection';
-    sortOrder?: 'newest' | 'oldest';
+    entryType?: "sale" | "collection";
+    sortOrder?: "newest" | "oldest";
     limit?: number;
     offset?: number;
   } = {},
@@ -102,37 +117,37 @@ export async function getLedgerEntries(
     customerId,
     customerSearch,
     entryType,
-    sortOrder = 'newest',
+    sortOrder = "newest",
     limit = 30,
     offset = 0,
   } = opts;
 
   const params: (string | number | null)[] = [storeId];
-  let whereClause = 'WHERE le.store_id = ?';
+  let whereClause = "WHERE le.store_id = ?";
 
   if (fromDate) {
-    whereClause += ' AND date(le.transaction_date) >= ?';
+    whereClause += " AND date(le.transaction_date) >= ?";
     params.push(fromDate);
   }
   if (toDate) {
-    whereClause += ' AND date(le.transaction_date) <= ?';
+    whereClause += " AND date(le.transaction_date) <= ?";
     params.push(toDate);
   }
   if (customerId) {
-    whereClause += ' AND le.customer_id = ?';
+    whereClause += " AND le.customer_id = ?";
     params.push(customerId);
   }
   if (customerSearch) {
-    whereClause += ' AND (c.name LIKE ? OR c.phone LIKE ?)';
+    whereClause += " AND (c.name LIKE ? OR c.phone LIKE ?)";
     const p = `%${customerSearch}%`;
     params.push(p, p);
   }
   if (entryType) {
-    whereClause += ' AND le.entry_type = ?';
+    whereClause += " AND le.entry_type = ?";
     params.push(entryType);
   }
 
-  const order = sortOrder === 'oldest' ? 'ASC' : 'DESC';
+  const order = sortOrder === "oldest" ? "ASC" : "DESC";
 
   const rows = await db.getAllAsync<LedgerRow>(
     `SELECT le.*, c.name, c.phone,
@@ -149,28 +164,35 @@ export async function getLedgerEntries(
 
 export async function getFilteredSummary(
   storeId: string,
-  opts: { fromDate?: string; toDate?: string; entryType?: 'sale' | 'collection' } = {},
+  opts: {
+    fromDate?: string;
+    toDate?: string;
+    entryType?: "sale" | "collection";
+  } = {},
 ): Promise<{ totalBaki: number; totalCollected: number; netDue: number }> {
   const db = await getDb();
   const { fromDate, toDate, entryType } = opts;
 
   const params: (string | null)[] = [storeId];
-  let whereClause = 'WHERE store_id = ?';
+  let whereClause = "WHERE store_id = ?";
 
   if (fromDate) {
-    whereClause += ' AND date(transaction_date) >= ?';
+    whereClause += " AND date(transaction_date) >= ?";
     params.push(fromDate);
   }
   if (toDate) {
-    whereClause += ' AND date(transaction_date) <= ?';
+    whereClause += " AND date(transaction_date) <= ?";
     params.push(toDate);
   }
   if (entryType) {
-    whereClause += ' AND entry_type = ?';
+    whereClause += " AND entry_type = ?";
     params.push(entryType);
   }
 
-  const row = await db.getFirstAsync<{ totalBaki: number; totalCollected: number }>(
+  const row = await db.getFirstAsync<{
+    totalBaki: number;
+    totalCollected: number;
+  }>(
     `SELECT
        COALESCE(SUM(CASE WHEN entry_type = 'sale' THEN total_amount ELSE 0 END), 0) AS totalBaki,
        COALESCE(SUM(CASE WHEN entry_type = 'collection' THEN paid_amount ELSE 0 END), 0) AS totalCollected
@@ -185,7 +207,7 @@ export async function getFilteredSummary(
 
 export interface CustomerLedgerEntry {
   id: string;
-  entry_type: 'sale' | 'collection';
+  entry_type: "sale" | "collection";
   total_amount: number;
   paid_amount: number;
   note: string | null;
@@ -193,7 +215,10 @@ export interface CustomerLedgerEntry {
   running_balance: number;
 }
 
-export async function getCustomerTotalDue(customerId: string, storeId: string): Promise<number> {
+export async function getCustomerTotalDue(
+  customerId: string,
+  storeId: string,
+): Promise<number> {
   const db = await getDb();
   const row = await db.getFirstAsync<{ due: number }>(
     `SELECT COALESCE(SUM(
@@ -220,17 +245,19 @@ export async function getCustomerLedgerHistory(
                    ELSE -paid_amount
               END
             ) OVER (
-              ORDER BY transaction_date ASC, created_at ASC
+              ORDER BY created_at ASC
               ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
             ) AS running_balance
      FROM ledger_entries
      WHERE customer_id = ? AND store_id = ?
-     ORDER BY transaction_date DESC, created_at DESC`,
+     ORDER BY created_at DESC`,
     [customerId, storeId],
   );
 }
 
-export async function getDirtyLedgerEntries(storeId: string): Promise<LedgerEntry[]> {
+export async function getDirtyLedgerEntries(
+  storeId: string,
+): Promise<LedgerEntry[]> {
   const db = await getDb();
   return db.getAllAsync<LedgerEntry>(
     `SELECT * FROM ledger_entries WHERE store_id = ? AND is_dirty = 1`,
@@ -241,14 +268,16 @@ export async function getDirtyLedgerEntries(storeId: string): Promise<LedgerEntr
 export async function markLedgerEntriesSynced(ids: string[]): Promise<void> {
   if (ids.length === 0) return;
   const db = await getDb();
-  const placeholders = ids.map(() => '?').join(',');
+  const placeholders = ids.map(() => "?").join(",");
   await db.runAsync(
     `UPDATE ledger_entries SET is_dirty = 0 WHERE id IN (${placeholders})`,
     ids,
   );
 }
 
-export async function batchUpsertLedgerEntries(entries: LedgerEntry[]): Promise<void> {
+export async function batchUpsertLedgerEntries(
+  entries: LedgerEntry[],
+): Promise<void> {
   if (entries.length === 0) return;
   const db = await getDb();
   await db.withTransactionAsync(async () => {
@@ -273,7 +302,9 @@ export async function batchUpsertLedgerEntries(entries: LedgerEntry[]): Promise<
   });
 }
 
-export async function upsertLedgerEntryFromCloud(entry: LedgerEntry): Promise<void> {
+export async function upsertLedgerEntryFromCloud(
+  entry: LedgerEntry,
+): Promise<void> {
   const db = await getDb();
   await db.runAsync(
     `INSERT INTO ledger_entries

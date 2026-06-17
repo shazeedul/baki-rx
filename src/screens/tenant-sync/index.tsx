@@ -212,9 +212,9 @@ const styles = StyleSheet.create({
   appName: { fontSize: 24, fontWeight: '800', color: colors.textPrimary },
   tagline: { fontSize: 13, color: colors.textSecondary, marginTop: spacing.xs, textAlign: 'center' },
   offlineAlert: {
-    backgroundColor: '#FEF3C7',
+    backgroundColor: colors.warningBg,
     borderWidth: 1,
-    borderColor: '#F59E0B',
+    borderColor: colors.warning,
     borderRadius: radius.md,
     padding: spacing.md,
     marginBottom: spacing.lg,
@@ -267,7 +267,7 @@ const styles = StyleSheet.create({
   tenantIdLabel: { fontSize: 11, color: colors.textSecondary, marginTop: spacing.xs },
   syncBtn: {
     height: 52,
-    backgroundColor: '#0F172A',
+    backgroundColor: colors.textPrimary,
     borderRadius: radius.md,
     alignItems: 'center',
     justifyContent: 'center',

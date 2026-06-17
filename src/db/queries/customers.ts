@@ -95,12 +95,16 @@ export async function getCustomerBalances(storeId: string, search?: string): Pro
   const db = await getDb();
   let query = `
     SELECT c.id, c.name, c.phone,
-           COALESCE(SUM(le.total_amount - le.paid_amount), 0) AS total_due
+           COALESCE(SUM(
+             CASE WHEN le.entry_type = 'sale' THEN (le.total_amount - le.paid_amount)
+                  WHEN le.entry_type = 'collection' THEN -le.paid_amount
+                  ELSE 0 END
+           ), 0) AS total_due
     FROM customers c
-    LEFT JOIN ledger_entries le ON le.customer_id = c.id
+    LEFT JOIN ledger_entries le ON le.customer_id = c.id AND le.store_id = ?
     WHERE c.store_id = ?
   `;
-  const params: (string | number)[] = [storeId];
+  const params: (string | number)[] = [storeId, storeId];
   if (search) {
     query += ` AND (c.name LIKE ? OR c.phone LIKE ?)`;
     const p = `%${search}%`;

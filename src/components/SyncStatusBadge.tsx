@@ -35,8 +35,8 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xs,
     borderRadius: radius.xl,
   },
-  syncing: { backgroundColor: '#FEF3C7' },
-  pending: { backgroundColor: '#FEF3C7' },
+  syncing: { backgroundColor: '#DBEAFE' },
+  pending: { backgroundColor: colors.warningBg },
   synced: { backgroundColor: colors.successBg },
   text: { fontSize: 11, fontWeight: '600', color: colors.textPrimary },
 });

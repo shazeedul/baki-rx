@@ -344,8 +344,8 @@ const styles = StyleSheet.create({
   },
   collectBtn: {
     flex: 1.4,
-    backgroundColor: '#D97706',
-    borderColor: '#D97706',
+    backgroundColor: colors.warning,
+    borderColor: colors.warning,
   },
   actionIcon: { fontSize: 18 },
   actionLabel: { fontSize: 11, fontWeight: '600', color: colors.textSecondary },

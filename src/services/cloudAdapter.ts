@@ -39,7 +39,10 @@ export const cloudAdapter = {
     if (MODE !== 'supabase') return { users: [], userStores: [] };
     const [usersRes, storesRes] = await Promise.all([
       supabase.from('users').select('*').eq('tenant_id', tenantId),
-      supabase.from('user_stores').select('*'),
+      supabase.from('user_stores').select('*').in(
+        'store_id',
+        (await supabase.from('stores').select('id').eq('tenant_id', tenantId)).data?.map((s) => s.id) ?? [],
+      ),
     ]);
     return {
       users: (usersRes.data ?? []) as User[],
