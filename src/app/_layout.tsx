@@ -36,6 +36,7 @@ export default function RootLayout() {
       <Stack.Screen name="report" />
       <Stack.Screen name="customer" />
       <Stack.Screen name="tenant-sync" />
+      <Stack.Screen name="ledger-sync" />
     </Stack>
   );
 }

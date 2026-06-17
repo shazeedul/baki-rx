@@ -7,6 +7,8 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
+import { router } from 'expo-router';
+import { ChevronRight } from 'lucide-react-native';
 import NetInfo from '@react-native-community/netinfo';
 import { useAuthStore } from '@/store/authStore';
 import { useSyncStore } from '@/store/syncStore';
@@ -115,12 +117,20 @@ export default function SyncTab() {
           </TouchableOpacity>
         )}
       </View>
+
+      <TouchableOpacity style={styles.ledgerSyncRow} onPress={() => router.push('/ledger-sync')}>
+        <View style={styles.ledgerSyncLeft}>
+          <Text style={styles.ledgerSyncTitle}>Sync Ledger by Date Range</Text>
+          <Text style={styles.ledgerSyncDesc}>Pull entries from cloud for a specific period</Text>
+        </View>
+        <ChevronRight size={18} color={colors.textSecondary} />
+      </TouchableOpacity>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background, padding: spacing.lg, justifyContent: 'center' },
+  container: { flex: 1, backgroundColor: colors.background, padding: spacing.lg, paddingTop: spacing.xl },
   title: { fontSize: 20, fontWeight: '800', color: colors.textPrimary, textAlign: 'center', marginBottom: spacing.xs },
   subtitle: { fontSize: 13, color: colors.textSecondary, textAlign: 'center', marginBottom: spacing.xl, lineHeight: 18 },
   card: {
@@ -165,4 +175,17 @@ const styles = StyleSheet.create({
   },
   syncBtnDisabled: { opacity: 0.6 },
   syncBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  ledgerSyncRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    marginTop: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  ledgerSyncLeft: { flex: 1 },
+  ledgerSyncTitle: { fontSize: 14, fontWeight: '700', color: colors.textPrimary },
+  ledgerSyncDesc: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
 });

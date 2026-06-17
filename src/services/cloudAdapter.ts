@@ -89,6 +89,26 @@ export const cloudAdapter = {
     return data as Customer[];
   },
 
+  async pullLedgerByDateRange(
+    storeId: string,
+    fromDate: string,
+    toDate: string,
+    limit: number,
+    offset: number,
+  ): Promise<LedgerEntry[]> {
+    if (MODE !== 'supabase') return [];
+    const { data, error } = await supabase
+      .from('ledger_entries')
+      .select('*')
+      .eq('store_id', storeId)
+      .gte('transaction_date', fromDate)
+      .lte('transaction_date', toDate)
+      .order('transaction_date', { ascending: true })
+      .range(offset, offset + limit - 1);
+    if (error || !data) return [];
+    return data as LedgerEntry[];
+  },
+
   async findTenantByName(name: string): Promise<Tenant | null> {
     if (MODE !== 'supabase') return null;
     const { data, error } = await supabase

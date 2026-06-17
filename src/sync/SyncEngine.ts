@@ -1,6 +1,6 @@
 import { clearAndRebuildUserStores, upsertTenant, upsertUser } from '@/db/queries/auth';
 import { getDirtyCustomers, markCustomersSynced, upsertCustomerFromCloud } from '@/db/queries/customers';
-import { countDirty, getDirtyLedgerEntries, markLedgerEntriesSynced, upsertLedgerEntryFromCloud } from '@/db/queries/ledger';
+import { batchUpsertLedgerEntries, countDirty, getDirtyLedgerEntries, markLedgerEntriesSynced, upsertLedgerEntryFromCloud } from '@/db/queries/ledger';
 import { upsertStore } from '@/db/queries/stores';
 import { getDb } from '@/db/schema';
 import { cloudAdapter } from '@/services/cloudAdapter';
@@ -81,6 +81,37 @@ class SyncEngine {
     for (const s of stores) {
       await upsertStore(s);
     }
+  }
+
+  async syncLedgerByDateRange(
+    storeId: string,
+    fromDate: string,
+    toDate: string,
+    onProgress: (batch: number, totalFetched: number) => void,
+  ): Promise<{ totalFetched: number; errors: number }> {
+    const BATCH_SIZE = 500;
+    let offset = 0;
+    let batchNum = 0;
+    let totalFetched = 0;
+    let errors = 0;
+
+    while (true) {
+      try {
+        const batch = await cloudAdapter.pullLedgerByDateRange(storeId, fromDate, toDate, BATCH_SIZE, offset);
+        if (batch.length === 0) break;
+        await batchUpsertLedgerEntries(batch);
+        totalFetched += batch.length;
+        batchNum += 1;
+        offset += batch.length;
+        onProgress(batchNum, totalFetched);
+        if (batch.length < BATCH_SIZE) break;
+      } catch {
+        errors += 1;
+        break;
+      }
+    }
+
+    return { totalFetched, errors };
   }
 
   async syncTenantFull(tenantId: string): Promise<void> {

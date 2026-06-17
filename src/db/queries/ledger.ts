@@ -248,6 +248,31 @@ export async function markLedgerEntriesSynced(ids: string[]): Promise<void> {
   );
 }
 
+export async function batchUpsertLedgerEntries(entries: LedgerEntry[]): Promise<void> {
+  if (entries.length === 0) return;
+  const db = await getDb();
+  await db.withTransactionAsync(async () => {
+    for (const entry of entries) {
+      await db.runAsync(
+        `INSERT OR IGNORE INTO ledger_entries
+           (id, store_id, customer_id, entry_type, total_amount, paid_amount, note, transaction_date, is_dirty, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?)`,
+        [
+          entry.id,
+          entry.store_id,
+          entry.customer_id,
+          entry.entry_type,
+          entry.total_amount,
+          entry.paid_amount,
+          entry.note ?? null,
+          entry.transaction_date,
+          entry.created_at,
+        ],
+      );
+    }
+  });
+}
+
 export async function upsertLedgerEntryFromCloud(entry: LedgerEntry): Promise<void> {
   const db = await getDb();
   await db.runAsync(
