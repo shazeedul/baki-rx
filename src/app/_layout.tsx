@@ -2,7 +2,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import React, { useEffect, useState } from 'react';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { Stack, router } from 'expo-router';
-import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
+import { BottomSheetModalProvider } from '@expo/ui/community/bottom-sheet';
 import { getDb } from '@/db/schema';
 import { useAuthStore } from '@/store/authStore';
 import { colors } from '@/constants/theme';

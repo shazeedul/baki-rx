@@ -5,22 +5,25 @@ import {
   StyleSheet,
   Alert,
   ActivityIndicator,
+  Keyboard,
+  Platform,
 } from 'react-native';
 import * as Crypto from 'expo-crypto';
 import { useAuthStore } from '@/store/authStore';
-import { insertCustomer } from '@/db/queries/customers';
+import { insertCustomer, type Customer } from '@/db/queries/customers';
 import { colors, spacing, radius } from '@/constants/theme';
 import {
   BottomSheetModal,
   BottomSheetView,
-  BottomSheetBackdrop,
   BottomSheetTextInput,
-} from '@gorhom/bottom-sheet';
+} from '@expo/ui/community/bottom-sheet';
+
+const SNAP_POINTS = ['50%', '70%', '100%'];
 
 interface Props {
   visible: boolean;
   onClose: () => void;
-  onAdded: () => void;
+  onAdded: (customer?: Customer) => void;
 }
 
 export default function AddCustomerDrawer({ visible, onClose, onAdded }: Props) {
@@ -33,24 +36,53 @@ export default function AddCustomerDrawer({ visible, onClose, onAdded }: Props) 
 
   const bottomSheetModalRef = useRef<BottomSheetModal>(null);
   const phoneRef = useRef<any>(null);
+  const isFirstRender = useRef(true);
 
-  const reset = () => {
+  const reset = useCallback(() => {
     setName('');
     setPhone('');
-  };
+  }, []);
 
   useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      if (!visible) return;
+    }
+
     if (visible) {
-      bottomSheetModalRef.current?.present();
+      Keyboard.dismiss();
+      const timer = setTimeout(() => {
+        bottomSheetModalRef.current?.present();
+      }, 100);
+      return () => clearTimeout(timer);
     } else {
       bottomSheetModalRef.current?.dismiss();
     }
   }, [visible]);
 
-  const handleClose = () => {
+  useEffect(() => {
+    if (!visible) return;
+
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    const showSubscription = Keyboard.addListener(showEvent, () => {
+      bottomSheetModalRef.current?.snapToIndex(1);
+    });
+    const hideSubscription = Keyboard.addListener(hideEvent, () => {
+      bottomSheetModalRef.current?.snapToIndex(0);
+    });
+
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, [visible]);
+
+  const handleClose = useCallback(() => {
     reset();
     onClose();
-  };
+  }, [reset, onClose]);
 
   const handleSave = async () => {
     const trimName = name.trim();
@@ -68,9 +100,20 @@ export default function AddCustomerDrawer({ visible, onClose, onAdded }: Props) 
     setSaving(true);
     try {
       const id = Crypto.randomUUID();
-      await insertCustomer({ id, store_id: storeId, name: trimName, phone: trimPhone, is_dirty: 1 });
+      const nowStr = new Date().toISOString();
+      const newCustomer: Customer = {
+        id,
+        store_id: storeId,
+        name: trimName,
+        phone: trimPhone,
+        is_dirty: 1,
+        created_at: nowStr,
+        updated_at: nowStr,
+      };
+
+      await insertCustomer(newCustomer);
       reset();
-      onAdded();
+      onAdded(newCustomer);
       bottomSheetModalRef.current?.dismiss();
     } catch {
       Alert.alert('Error', 'Failed to save customer. Please try again.');
@@ -79,24 +122,12 @@ export default function AddCustomerDrawer({ visible, onClose, onAdded }: Props) 
     }
   };
 
-  const renderBackdrop = useCallback(
-    (props: any) => (
-      <BottomSheetBackdrop
-        {...props}
-        appearsOnIndex={0}
-        disappearsOnIndex={-1}
-        pressBehavior="close"
-      />
-    ),
-    []
-  );
-
   return (
     <BottomSheetModal
       ref={bottomSheetModalRef}
       index={0}
-      snapPoints={['55%']}
-      backdropComponent={renderBackdrop}
+      snapPoints={SNAP_POINTS}
+      enablePanDownToClose={true}
       onDismiss={handleClose}
       keyboardBehavior="interactive"
       keyboardBlurBehavior="restore"

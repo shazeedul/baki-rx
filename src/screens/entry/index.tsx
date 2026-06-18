@@ -143,7 +143,12 @@ export default function EntryScreen() {
       <AddCustomerDrawer
         visible={drawerVisible}
         onClose={() => setDrawerVisible(false)}
-        onAdded={() => setRefreshKey((k) => k + 1)}
+        onAdded={(newCustomer) => {
+          if (newCustomer) {
+            setSelectedCustomer(newCustomer);
+          }
+          setRefreshKey((k) => k + 1);
+        }}
       />
     </View>
   );

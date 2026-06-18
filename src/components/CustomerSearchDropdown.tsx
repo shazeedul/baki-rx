@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
+  Keyboard,
 } from 'react-native';
 import { useAuthStore } from '@/store/authStore';
 import { searchCustomers, listCustomers, type Customer } from '@/db/queries/customers';
@@ -99,18 +100,41 @@ export default function CustomerSearchDropdown({ onSelect, onAddNew, selectedCus
             nestedScrollEnabled
           >
             {results.length === 0 ? (
-              !loading && (
-                <TouchableOpacity style={styles.emptyRow} onPress={onAddNew}>
+              !loading && onAddNew && (
+                <TouchableOpacity
+                  style={styles.emptyRow}
+                  onPress={() => {
+                    Keyboard.dismiss();
+                    setOpen(false);
+                    onAddNew();
+                  }}
+                >
                   <Text style={styles.emptyText}>No customer found — tap + to add</Text>
                 </TouchableOpacity>
               )
             ) : (
-              results.map((item) => (
-                <TouchableOpacity key={item.id} style={styles.row} onPress={() => handleSelect(item)}>
-                  <Text style={styles.rowName}>{item.name}</Text>
-                  <Text style={styles.rowPhone}>{item.phone}</Text>
-                </TouchableOpacity>
-              ))
+              <>
+                {results.map((item) => (
+                  <TouchableOpacity key={item.id} style={styles.row} onPress={() => handleSelect(item)}>
+                    <Text style={styles.rowName}>{item.name}</Text>
+                    <Text style={styles.rowPhone}>{item.phone}</Text>
+                  </TouchableOpacity>
+                ))}
+                {!loading && onAddNew && (
+                  <TouchableOpacity
+                    style={styles.addNewRow}
+                    onPress={() => {
+                      Keyboard.dismiss();
+                      setOpen(false);
+                      onAddNew();
+                    }}
+                  >
+                    <Text style={styles.addNewRowText}>
+                      {query.trim().length > 0 ? `+ Add "${query}" as new customer` : '+ Add New Customer'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </>
             )}
             {hasMore && !loading && (
               <TouchableOpacity style={styles.loadMore} onPress={loadMore}>
@@ -170,4 +194,17 @@ const styles = StyleSheet.create({
   loadMore: { padding: spacing.md, alignItems: 'center' },
   loadMoreText: { color: colors.primary, fontSize: 13 },
   scrollList: { flex: 1 },
+  addNewRow: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    alignItems: 'center',
+    backgroundColor: colors.background,
+  },
+  addNewRowText: {
+    color: colors.primary,
+    fontSize: 14,
+    fontWeight: '700',
+  },
 });
