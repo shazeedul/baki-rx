@@ -169,7 +169,7 @@ export async function getFilteredSummary(
     toDate?: string;
     entryType?: "sale" | "collection";
   } = {},
-): Promise<{ totalBaki: number; totalCollected: number; netDue: number }> {
+): Promise<{ totalDue: number; totalCollected: number; netDue: number }> {
   const db = await getDb();
   const { fromDate, toDate, entryType } = opts;
 
@@ -190,19 +190,19 @@ export async function getFilteredSummary(
   }
 
   const row = await db.getFirstAsync<{
-    totalBaki: number;
+    totalDue: number;
     totalCollected: number;
   }>(
     `SELECT
-       COALESCE(SUM(CASE WHEN entry_type = 'sale' THEN total_amount ELSE 0 END), 0) AS totalBaki,
+       COALESCE(SUM(CASE WHEN entry_type = 'sale' THEN total_amount ELSE 0 END), 0) AS totalDue,
        COALESCE(SUM(CASE WHEN entry_type = 'collection' THEN paid_amount ELSE 0 END), 0) AS totalCollected
      FROM ledger_entries ${whereClause}`,
     params,
   );
 
-  const totalBaki = row?.totalBaki ?? 0;
+  const totalDue = row?.totalDue ?? 0;
   const totalCollected = row?.totalCollected ?? 0;
-  return { totalBaki, totalCollected, netDue: totalBaki - totalCollected };
+  return { totalDue, totalCollected, netDue: totalDue - totalCollected };
 }
 
 export interface CustomerLedgerEntry {

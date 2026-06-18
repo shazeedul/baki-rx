@@ -1,29 +1,30 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import {
-  View,
-  Text,
-  FlatList,
-  TouchableOpacity,
-  StyleSheet,
-  ActivityIndicator,
-  Linking,
-  Modal,
-  TextInput,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-} from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
-import * as Crypto from 'expo-crypto';
-import { useAuthStore } from '@/store/authStore';
+import { colors, radius, spacing } from '@/constants/theme';
 import { getCustomerById, type Customer } from '@/db/queries/customers';
 import {
-  getCustomerTotalDue,
   getCustomerLedgerHistory,
+  getCustomerTotalDue,
   insertLedgerEntry,
   type CustomerLedgerEntry,
 } from '@/db/queries/ledger';
-import { colors, spacing, radius } from '@/constants/theme';
+import { useAuthStore } from '@/store/authStore';
+import * as Crypto from 'expo-crypto';
+import { router, useLocalSearchParams } from 'expo-router';
+import { MessageCircleCheck, Phone } from 'lucide-react-native';
+import { useCallback, useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  KeyboardAvoidingView,
+  Linking,
+  Modal,
+  Platform,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 
 function fmt(n: number) {
   return '৳' + Math.abs(n).toLocaleString('en-BD', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
@@ -38,7 +39,7 @@ function initials(name: string) {
 }
 
 function fmtDate(d: string) {
-  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const parts = d.split('-');
   if (parts.length < 3) return d;
   return `${months[parseInt(parts[1], 10) - 1]} ${parseInt(parts[2], 10)}`;
@@ -133,11 +134,11 @@ export default function CustomerLedgerScreen() {
             {/* Action Buttons */}
             <View style={styles.actionRow}>
               <TouchableOpacity style={styles.actionBtn} onPress={handleWhatsApp}>
-                <Text style={styles.actionIcon}>💬</Text>
+                <Text style={styles.actionIcon}><MessageCircleCheck /></Text>
                 <Text style={styles.actionLabel}>WhatsApp</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.actionBtn} onPress={handleCall}>
-                <Text style={styles.actionIcon}>📞</Text>
+                <Text style={styles.actionIcon}><Phone /></Text>
                 <Text style={styles.actionLabel}>Call</Text>
               </TouchableOpacity>
               <TouchableOpacity

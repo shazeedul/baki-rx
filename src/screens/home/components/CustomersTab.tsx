@@ -1,17 +1,17 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  FlatList,
-  TouchableOpacity,
-  StyleSheet,
-  ActivityIndicator,
-} from 'react-native';
-import { router } from 'expo-router';
-import { getCustomerBalances, type CustomerBalance } from '@/db/queries/customers';
-import { colors, spacing, radius } from '@/constants/theme';
 import AddCustomerDrawer from '@/components/AddCustomerDrawer';
+import SearchBar from '@/components/SearchBar';
+import { colors, radius, spacing } from '@/constants/theme';
+import { getCustomerBalances, type CustomerBalance } from '@/db/queries/customers';
+import { router } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  FlatList,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
+} from 'react-native';
 
 interface Props {
   storeId: string;
@@ -56,11 +56,10 @@ export default function CustomersTab({ storeId }: Props) {
         </TouchableOpacity>
       </View>
 
-      <TextInput
-        style={styles.searchInput}
-        placeholder="Search by name or mobile…"
+      <SearchBar
         value={search}
         onChangeText={setSearch}
+        placeholder="Search by name or mobile…"
       />
 
       {loading && customers.length === 0 ? (

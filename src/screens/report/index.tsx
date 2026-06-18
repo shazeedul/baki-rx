@@ -1,18 +1,18 @@
-import React, { useState, useCallback, useEffect } from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  FlatList,
-  StyleSheet,
-  ActivityIndicator,
-} from 'react-native';
-import { router } from 'expo-router';
-import { useAuthStore } from '@/store/authStore';
-import { getLedgerEntries, getFilteredSummary, type LedgerRow } from '@/db/queries/ledger';
 import DatePickerField from '@/components/DatePickerField';
 import SearchBar from '@/components/SearchBar';
-import { colors, spacing, radius } from '@/constants/theme';
+import { colors, radius, spacing } from '@/constants/theme';
+import { getFilteredSummary, getLedgerEntries, type LedgerRow } from '@/db/queries/ledger';
+import { useAuthStore } from '@/store/authStore';
+import { router } from 'expo-router';
+import React, { useCallback, useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  FlatList,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 
 type EntryTypeFilter = 'all' | 'sale' | 'collection';
 type SortOrder = 'newest' | 'oldest';
@@ -46,7 +46,7 @@ export default function ReportScreen({ isTab = false }: { isTab?: boolean }) {
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const [summary, setSummary] = useState({ totalBaki: 0, totalCollected: 0, netDue: 0 });
+  const [summary, setSummary] = useState({ totalDue: 0, totalCollected: 0, netDue: 0 });
 
   const debounceRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -149,8 +149,8 @@ export default function ReportScreen({ isTab = false }: { isTab?: boolean }) {
       {/* Summary Bar */}
       <View style={styles.summaryBar}>
         <View style={styles.summaryItem}>
-          <Text style={styles.summaryLabel}>Total Baki</Text>
-          <Text style={[styles.summaryValue, { color: colors.danger }]}>{fmt(summary.totalBaki)}</Text>
+          <Text style={styles.summaryLabel}>Total Due</Text>
+          <Text style={[styles.summaryValue, { color: colors.danger }]}>{fmt(summary.totalDue)}</Text>
         </View>
         <View style={styles.summaryItem}>
           <Text style={styles.summaryLabel}>Collected</Text>
